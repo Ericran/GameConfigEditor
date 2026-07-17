@@ -20,19 +20,6 @@ import { useServer } from '@gameap/plugin-sdk';
 const props = defineProps<FileEditorProps & { embedded?: boolean }>();
 const emit = defineEmits<{ save: [content: string]; close: [] }>();
 
-const en: Record<string, string> = {
-    server_running_warning:
-        'This server appears to be RUNNING. Palworld overwrites this file on shutdown, so stop the server before saving or your changes will be lost.',
-    parse_failed: 'Could not locate an OptionSettings=(...) block. Editing raw text instead.',
-    relay_publicip_warning:
-        'PublicIP is set. For a WireGuard relay or an unlisted server this advertises your real IP to the community browser. Clear it unless you intend to be publicly listed.',
-    clear_public: 'Clear PublicIP & PublicPort',
-    save: 'Save',
-    close: 'Close',
-    advanced_note: 'Keys not in the schema — edited as raw values, preserved verbatim.',
-};
-const trans = (k: string) => en[k] ?? k;
-
 // ---- server-running detection (best-effort) ----
 let serverRef: any = null;
 try {
@@ -364,10 +351,9 @@ const publicIpSet = computed(() => {
     return typeof v === 'string' && v.trim().length > 0;
 });
 function clearPublic() {
-    if ('PublicIP' in values) {
-        values['PublicIP'] = '""';
-        dirty.value = true;
-    }
+    // Route PublicIP through its model so toRaw owns the quoting. PublicPort is
+    // blanked directly since an empty value isn't a valid number to convert.
+    if ('PublicIP' in values) models['PublicIP'].value = '';
     if ('PublicPort' in values) {
         values['PublicPort'] = '';
         dirty.value = true;
@@ -408,12 +394,15 @@ const inputClass =
             v-if="serverRunning"
             class="m-2 rounded-md border border-orange-400 bg-orange-50 px-3 py-2 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300"
         >
-            <i class="fa-solid fa-triangle-exclamation mr-1"></i>{{ trans('server_running_warning') }}
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i>This server appears to be RUNNING. Palworld
+            overwrites this file on shutdown, so stop the server before saving or your changes will be lost.
         </div>
 
         <!-- raw fallback -->
         <div v-if="parseFailed" class="flex-1 flex flex-col p-2 gap-2 min-h-0">
-            <div class="text-red-600 dark:text-red-400 text-xs">{{ trans('parse_failed') }}</div>
+            <div class="text-red-600 dark:text-red-400 text-xs">
+                Could not locate an OptionSettings=(...) block. Editing raw text instead.
+            </div>
             <textarea
                 v-model="rawText"
                 spellcheck="false"
@@ -433,15 +422,21 @@ const inputClass =
                     v-if="group.id === 'network' && publicIpSet"
                     class="mb-3 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 flex items-center justify-between gap-3"
                 >
-                    <span><i class="fa-solid fa-shield-halved mr-1"></i>{{ trans('relay_publicip_warning') }}</span>
+                    <span
+                        ><i class="fa-solid fa-shield-halved mr-1"></i>PublicIP is set. For a WireGuard relay or an
+                        unlisted server this advertises your real IP to the community browser. Clear it unless you
+                        intend to be publicly listed.</span
+                    >
                     <button
                         class="shrink-0 rounded bg-amber-600 px-2 py-1 text-white text-xs hover:bg-amber-700"
                         @click="clearPublic"
                     >
-                        {{ trans('clear_public') }}
+                        Clear PublicIP &amp; PublicPort
                     </button>
                 </div>
-                <p v-if="group.id === 'advanced'" class="mb-2 text-xs text-stone-400">{{ trans('advanced_note') }}</p>
+                <p v-if="group.id === 'advanced'" class="mb-2 text-xs text-stone-400">
+                    Keys not in the schema — edited as raw values, preserved verbatim.
+                </p>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                     <label v-for="f in group.fields" :key="f.key" class="flex flex-col gap-1">
@@ -472,14 +467,14 @@ const inputClass =
                 class="rounded px-3 py-1 text-sm text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
                 @click="onClose"
             >
-                {{ trans('close') }}
+                Close
             </button>
             <button
                 class="rounded bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="!dirty"
                 @click="onSave"
             >
-                {{ trans('save') }}
+                Save
             </button>
         </div>
     </div>

@@ -8,8 +8,6 @@ import { resolve } from 'path';
 function globalExternalsPlugin() {
     const globals = {
         'vue': 'window.Vue',
-        'vue-router': 'window.VueRouter',
-        'pinia': 'window.Pinia',
         'axios': 'window.axios',
     };
 
@@ -85,15 +83,10 @@ export default defineConfig({
         outDir: 'dist',
         emptyOutDir: true,
         rollupOptions: {
-            external: ['vue', 'vue-router', 'pinia', 'axios'],
-            output: {
-                globals: {
-                    vue: 'Vue',
-                    'vue-router': 'VueRouter',
-                    pinia: 'Pinia',
-                    axios: 'axios',
-                },
-            },
+            // es lib output: externals stay as `import` statements that
+            // globalExternalsPlugin rewrites to window globals. (output.globals
+            // only applies to iife/umd, so there's nothing to set here.)
+            external: ['vue', 'axios'],
             plugins: [globalExternalsPlugin(), wrapInIIFEPlugin()],
         },
     },

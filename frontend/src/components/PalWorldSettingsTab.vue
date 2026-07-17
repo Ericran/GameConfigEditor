@@ -29,7 +29,7 @@ const notice = ref<string | null>(null);
 const content = ref<string | null>(null);
 const reloadKey = ref(0);
 
-const base = () => `/api/file-manager/${props.serverId}`;
+const base = `/api/file-manager/${props.serverId}`;
 
 function errMsg(e: any, fallback: string): string {
     return e?.response?.data?.message || e?.response?.data?.error || e?.message || fallback;
@@ -40,7 +40,7 @@ async function load() {
     notice.value = null;
     loading.value = true;
     try {
-        const resp = await axios.get(`${base()}/stream-file`, {
+        const resp = await axios.get(`${base}/stream-file`, {
             params: { disk: DISK, path: CONFIG_PATH },
             responseType: 'text',
             transformResponse: [(d: any) => d], // keep raw text, don't JSON-parse
@@ -63,7 +63,7 @@ async function onSave(newContent: string) {
         fd.append('disk', DISK);
         fd.append('path', CONFIG_DIR);
         fd.append('file', new File([newContent], CONFIG_NAME, { type: 'text/plain' }));
-        await axios.post(`${base()}/update-file`, fd);
+        await axios.post(`${base}/update-file`, fd);
         content.value = newContent;
         reloadKey.value++;
         notice.value = 'Saved.';
