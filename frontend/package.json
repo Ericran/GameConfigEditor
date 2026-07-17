@@ -1,6 +1,6 @@
 {
   "name": "gameap-palworld-settings",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Palworld settings editor — GameAP plugin frontend",
   "type": "module",
   "main": "./dist/plugin.js",

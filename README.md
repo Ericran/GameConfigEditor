@@ -28,8 +28,17 @@ A GameAP plugin is a single `.wasm` file with two parts:
 The editor preserves every key it doesn't surface as a field, keeping the
 original formatting; it only rewrites what you change.
 
+### Access
+
+- **Server tab** — a "Palworld Settings" tab on the server page loads the ini
+  directly (via the panel file API: `stream-file` to read, `update-file` to
+  save), so there's no file browsing. Gated to Palworld servers.
+- **File-manager editor** — also registered for `PalWorldSettings.ini`, so
+  browsing to the file still offers the structured editor.
+
 ### Features
 
+- Full schema across 11 groups + a dynamic "Advanced" catch-all.
 - Form fields for identity, players/world, and rates settings.
 - **Relay guardrail:** warns when `PublicIP` is set and offers one-click clear
   (relevant to the WireGuard relay setup — don't leak your home IP).

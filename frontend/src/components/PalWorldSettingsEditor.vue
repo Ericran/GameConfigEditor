@@ -15,7 +15,9 @@ import { useServer } from '@gameap/plugin-sdk';
  * corrupt the file.
  */
 
-const props = defineProps<FileEditorProps>();
+// `embedded` is set when hosted in a server tab (vs the file-manager editor):
+// it hides the Close button since there's no modal to dismiss.
+const props = defineProps<FileEditorProps & { embedded?: boolean }>();
 const emit = defineEmits<{ save: [content: string]; close: [] }>();
 
 const en: Record<string, string> = {
@@ -466,6 +468,7 @@ const inputClass =
         <!-- footer -->
         <div class="border-t border-stone-200 dark:border-stone-700 p-2 flex items-center justify-end gap-2">
             <button
+                v-if="!embedded"
                 class="rounded px-3 py-1 text-sm text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
                 @click="onClose"
             >
