@@ -44,7 +44,7 @@ func (p *PalworldSettingsPlugin) GetInfo(
 	return &pluginproto.PluginInfo{
 		Id:          "palworld-settings",
 		Name:        "Palworld Settings Editor",
-		Version:     "0.1.0",
+		Version:     "0.2.0",
 		Description: "Structured editor for PalWorldSettings.ini",
 		Author:      "psinetreject",
 		ApiVersion:  "1",

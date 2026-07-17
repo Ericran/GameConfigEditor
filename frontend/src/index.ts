@@ -7,7 +7,7 @@ import PalWorldSettingsEditor from './components/PalWorldSettingsEditor.vue';
 export const palworldSettingsPlugin: PluginDefinition = {
     id: 'palworld-settings',
     name: 'Palworld Settings Editor',
-    version: '0.1.0',
+    version: '0.2.0',
     apiVersion: '1.0',
     description: 'Structured editor for PalWorldSettings.ini',
     author: 'psinetreject',

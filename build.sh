@@ -10,6 +10,16 @@ TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (Ga
 OUT="${OUT:-gameap-addon.wasm}"
 U="$(id -u):$(id -g)"
 
+# Guard: the plugin version lives in three files and must match. Bump all three.
+GO_VER=$(grep -oE 'Version:[[:space:]]*"[0-9.]+"' main.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+PKG_VER=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[0-9.]+"' frontend/package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+TS_VER=$(grep -oE "version:[[:space:]]*'[0-9.]+'" frontend/src/index.ts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ "$GO_VER" != "$PKG_VER" ] || [ "$GO_VER" != "$TS_VER" ]; then
+  echo "!! version mismatch — main.go=$GO_VER package.json=$PKG_VER index.ts=$TS_VER" >&2
+  exit 1
+fi
+echo ">> building version ${GO_VER}"
+
 echo ">> [1/4] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_TAG})"
 if [ ! -d .sdk/gameap/.git ]; then
   mkdir -p .sdk
