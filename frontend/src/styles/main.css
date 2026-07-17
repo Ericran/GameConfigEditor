@@ -1,4 +1,23 @@
-@import "tailwindcss";
+/*
+ * Import Tailwind WITHOUT preflight.
+ *
+ * GameAP injects a plugin's styles panel-wide, so Tailwind's preflight (a global
+ * reset on bare element selectors: box-sizing, margin:0, heading/list resets…)
+ * would clobber the host panel's own UI — e.g. breaking file-manager navigation.
+ * Utilities are class-scoped: they only affect elements we explicitly tag, so
+ * they can't leak into the panel. Theme just defines CSS variables (harmless).
+ */
+@layer theme, base, components, utilities;
 
-/* Match the panel's dark-mode convention (class-based). */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Re-establish the box model Tailwind utilities assume, scoped to our editor. */
+.pws-root,
+.pws-root *,
+.pws-root *::before,
+.pws-root *::after {
+    box-sizing: border-box;
+}
+
 @variant dark (&:where(.dark, .dark *));

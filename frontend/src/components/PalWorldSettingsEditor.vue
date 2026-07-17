@@ -238,7 +238,7 @@ const inputClass =
 </script>
 
 <template>
-    <div class="flex flex-col h-full max-h-full text-sm text-stone-800 dark:text-stone-200">
+    <div class="pws-root flex flex-col h-full max-h-full text-sm text-stone-800 dark:text-stone-200">
         <!-- running-server warning -->
         <div
             v-if="serverRunning"
