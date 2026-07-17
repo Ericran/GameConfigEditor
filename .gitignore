@@ -1,0 +1,10 @@
+# build artifacts
+*.wasm
+frontend/dist/*
+!frontend/dist/.gitkeep
+
+# dependencies / caches
+frontend/node_modules
+/.sdk/
+/.cache/
+go.sum.tmp

@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* Match the panel's dark-mode convention (class-based). */
+@variant dark (&:where(.dark, .dark *));
