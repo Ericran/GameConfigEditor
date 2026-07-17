@@ -7,9 +7,10 @@ newline that resets the server to defaults), you get labelled form fields.
 
 ## Status
 
-**Scaffold / first pass.** The frontend editor is functional; the WASM build
-pipeline is set up but **not yet validated on a real build** — see *Known
-unknowns* below.
+**Builds.** `./build.sh` produces `gameap-addon.wasm` (~4.7 MB) end-to-end on a
+clean host with only Docker + git. Validated on the build host against the GameAP
+v4.3.0 SDK. Not yet load-tested in the panel against a live
+`PalWorldSettings.ini`.
 
 ## How it works
 
@@ -57,16 +58,18 @@ In the panel: **Administration → Plugins → Upload**, select
 `gameap-addon.wasm`. Then open `PalWorldSettings.ini` in the file manager — the
 "Palworld Settings" editor will be offered.
 
-## Known unknowns (validate on first build)
+## Build notes / gotchas (resolved)
 
-- **Go/TinyGo version compatibility.** The GameAP module targets `go 1.25`;
-  confirm the pinned `tinygo/tinygo` image supports it, and bump `TINYGO_IMAGE`
-  in `build.sh` if needed.
-- **SDK import via local `replace`.** `github.com/gameap/gameap` is v4.x with no
-  `/v4` module path, so we vendor it via `./.sdk/gameap`. `go mod tidy` on first
-  build will pin the indirect deps.
-- **CSS output name.** Vite's emitted CSS filename is normalized to `plugin.css`
-  by `build.sh` before the Go `//go:embed`.
+- **Go 1.26 required.** The GameAP v4.3.0 SDK declares `go 1.26` /
+  `toolchain go1.26.5`, so the TinyGo image must support Go 1.26 — TinyGo 0.39
+  (Go ≤1.25) fails. Pinned to `tinygo/tinygo:0.41.1`.
+- **gRPC stub trim.** `pkg/plugin/proto` pulls in `pkg/proto`, which ships
+  host-side `*_grpc.pb.go` files whose TLS code TinyGo can't compile. `build.sh`
+  deletes them from the vendored SDK (they're unused by the guest).
+- **SDK vendored via `replace`.** `github.com/gameap/gameap` is v4.x with no
+  `/v4` module path, so it can't be `go get`-ed; `build.sh` checks it out into
+  `./.sdk/gameap` and `go.mod` replaces to it.
+- **CSS output name** is normalized to `plugin.css` before the Go `//go:embed`.
 
 ## Layout
 
