@@ -1,0 +1,92 @@
+/** Minecraft (Java) server.properties — curated schema; unknown keys fall to Advanced. */
+import type { Schema } from '../../formats/types';
+import { n, b, t, sel } from '../fields';
+
+export const minecraftSchema: Schema = [
+    {
+        id: 'server',
+        title: 'Server / Identity',
+        icon: 'fa-solid fa-id-card',
+        fields: [
+            t('motd', 'MOTD (server list message)'),
+            n('server-port', 'Server port'),
+            t('server-ip', 'Bind IP (blank = all)'),
+            n('max-players', 'Max players'),
+            b('online-mode', 'Online mode (Mojang auth)'),
+            b('white-list', 'Whitelist enabled'),
+            b('enforce-whitelist', 'Enforce whitelist'),
+            sel('op-permission-level', 'Op permission level', ['1', '2', '3', '4']),
+            n('player-idle-timeout', 'Idle timeout (min, 0 = off)'),
+        ],
+    },
+    {
+        id: 'world',
+        title: 'World & Gameplay',
+        icon: 'fa-solid fa-earth-americas',
+        fields: [
+            t('level-name', 'World folder name'),
+            t('level-seed', 'World seed'),
+            sel('level-type', 'World type', [
+                'minecraft:normal',
+                'minecraft:flat',
+                'minecraft:large_biomes',
+                'minecraft:amplified',
+            ]),
+            sel('gamemode', 'Default game mode', ['survival', 'creative', 'adventure', 'spectator']),
+            b('force-gamemode', 'Force game mode on join'),
+            sel('difficulty', 'Difficulty', ['peaceful', 'easy', 'normal', 'hard']),
+            b('hardcore', 'Hardcore'),
+            b('pvp', 'PvP'),
+            b('allow-flight', 'Allow flight'),
+            b('allow-nether', 'Allow Nether'),
+            b('generate-structures', 'Generate structures'),
+            b('spawn-monsters', 'Spawn monsters'),
+            b('spawn-animals', 'Spawn animals'),
+            b('spawn-npcs', 'Spawn NPCs (villagers)'),
+            b('enable-command-block', 'Enable command blocks'),
+            n('spawn-protection', 'Spawn protection radius'),
+            n('max-world-size', 'Max world size (radius)'),
+        ],
+    },
+    {
+        id: 'performance',
+        title: 'Performance',
+        icon: 'fa-solid fa-gauge-high',
+        fields: [
+            n('view-distance', 'View distance (chunks)'),
+            n('simulation-distance', 'Simulation distance (chunks)'),
+            n('max-tick-time', 'Max tick time (ms, -1 = disable watchdog)'),
+            n('network-compression-threshold', 'Network compression threshold'),
+            n('entity-broadcast-range-percentage', 'Entity broadcast range %'),
+            b('sync-chunk-writes', 'Sync chunk writes'),
+            b('use-native-transport', 'Use native transport'),
+        ],
+    },
+    {
+        id: 'network',
+        title: 'Networking / RCON / Query',
+        icon: 'fa-solid fa-network-wired',
+        fields: [
+            b('enable-rcon', 'RCON enabled'),
+            n('rcon.port', 'RCON port'),
+            t('rcon.password', 'RCON password'),
+            b('broadcast-rcon-to-ops', 'Broadcast RCON to ops'),
+            b('enable-query', 'Query enabled'),
+            n('query.port', 'Query port'),
+            b('enable-status', 'Show in server list (status)'),
+            b('hide-online-players', 'Hide online players'),
+            b('prevent-proxy-connections', 'Prevent proxy connections'),
+            n('rate-limit', 'Packet rate limit (0 = off)'),
+        ],
+    },
+    {
+        id: 'resourcepack',
+        title: 'Resource Pack',
+        icon: 'fa-solid fa-box-open',
+        fields: [
+            t('resource-pack', 'Resource pack URL'),
+            t('resource-pack-sha1', 'Resource pack SHA-1'),
+            b('require-resource-pack', 'Require resource pack'),
+        ],
+    },
+];

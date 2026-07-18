@@ -1,40 +1,52 @@
 import type { PluginDefinition } from '@gameap/plugin-sdk';
 import './styles/main.css';
-import PalWorldSettingsEditor from './components/PalWorldSettingsEditor.vue';
-import PalWorldSettingsTab from './components/PalWorldSettingsTab.vue';
+import ConfigEditor from './components/ConfigEditor.vue';
+import GameConfigTab from './components/GameConfigTab.vue';
+import LaunchSettingsTab from './components/LaunchSettingsTab.vue';
+import { games } from './games/registry';
 
 // Single named export — the panel's bundle loader (and the Vite IIFE wrapper)
 // expect exactly one exported PluginDefinition.
-export const palworldSettingsPlugin: PluginDefinition = {
-    id: 'palworld-settings',
-    name: 'Palworld Settings Editor',
-    version: '0.3.0',
+export const gameConfigPlugin: PluginDefinition = {
+    id: 'game-config-editor',
+    name: 'Game Config Editor',
+    version: '0.4.0',
     apiVersion: '1.0',
-    description: 'Structured editor for PalWorldSettings.ini',
+    description: 'Structured editors for game server config files (Palworld, Minecraft, and more)',
     author: 'psinetreject',
 
-    // A tab on the server page that loads PalWorldSettings.ini directly —
-    // no file browsing. (Gated to Palworld servers inside the component.)
+    // One generic tab on every server page. GameAP can't gate a tab per game,
+    // so the tab itself switches on server.game_id (and shows a "not supported
+    // yet" note for games we don't cover) — see GameConfigTab.vue.
     slots: {
         'server-tabs': [
             {
-                component: PalWorldSettingsTab,
-                label: 'Palworld Settings',
+                component: GameConfigTab,
+                label: 'Game Config',
                 icon: 'fa-solid fa-sliders',
-                name: 'palworld-settings',
+                name: 'game-config',
+            },
+            {
+                // Edits start-command variables via the panel settings API — the
+                // only editor for games (Valheim) whose config is launch args.
+                component: LaunchSettingsTab,
+                label: 'Launch Settings',
+                icon: 'fa-solid fa-terminal',
+                name: 'launch-settings',
             },
         ],
     },
 
-    // Also keep the file-manager editor for anyone who browses to the file.
-    fileEditors: [
-        {
-            id: 'palworld-settings',
-            name: 'Palworld Settings',
-            component: PalWorldSettingsEditor,
-            match: { fileName: 'PalWorldSettings.ini' },
-            contentType: 'text',
-            icon: 'fa-solid fa-sliders',
-        },
-    ],
+    // File-manager editors CAN be game-gated declaratively (match.gameCode),
+    // so we register one per registered config file — browsing to that file on
+    // the matching game offers the structured editor. Generated from the
+    // registry so adding a game in one place wires up both surfaces.
+    fileEditors: games.map((g) => ({
+        id: `config-${g.gameId}-${g.fileName}`,
+        name: `${g.gameName} config`,
+        component: ConfigEditor,
+        match: { fileName: g.fileName, gameCode: g.gameId },
+        contentType: 'text' as const,
+        icon: 'fa-solid fa-sliders',
+    })),
 };

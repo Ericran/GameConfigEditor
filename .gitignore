@@ -5,6 +5,7 @@ frontend/dist/*
 
 # dependencies / caches
 frontend/node_modules
+frontend/package-lock.json
 /.sdk/
 /.cache/
 go.sum.tmp

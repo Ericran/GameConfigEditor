@@ -1,0 +1,131 @@
+/**
+ * Multi-section INI — `[Section]` headers with `key=value` lines under each.
+ * Covers ARK (`GameUserSettings.ini`, `Game.ini`) and other Unreal-style
+ * configs. Section-less files parse as one anonymous ('') section.
+ *
+ * A line model round-trips comments, ordering, and untouched keys/sections
+ * verbatim; editing a key replaces only the value, preserving the original
+ * key's exact text (and thus casing). Addresses are `section`+`key` (see
+ * shared.addr).
+ *
+ * `caseInsensitive` (ARK/Unreal): keys and section names match case-
+ * insensitively, so a schema field spelled `allowThirdPersonPlayer` finds and
+ * updates the game-written `AllowThirdPersonPlayer` instead of appending a
+ * duplicate. Duplicate keys within a section (ARK's repeated array keys)
+ * resolve to the last occurrence for editing; the rest are preserved untouched.
+ */
+import type { ConfigDoc, Format } from './types';
+import { makeCodec, addr, addrSection, addrKey, type CodecOptions } from './shared';
+
+const SECTION = /^\s*\[([^\]]*)\]\s*$/;
+const COMMENT = /^\s*[;#]/;
+const KV = /^\s*([^=\s[][^=]*?)\s*=(.*)$/;
+
+interface Line {
+    text: string;
+    section?: string;
+    key?: string;
+}
+
+export interface IniOptions {
+    codec?: Partial<CodecOptions>;
+    caseInsensitive?: boolean;
+}
+
+export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
+    // INI/Unreal booleans are capitalised True/False; strings are unquoted.
+    const codec = makeCodec({ boolTrue: 'True', boolFalse: 'False', ...opts.codec });
+    const ci = !!opts.caseInsensitive;
+    const norm = (s: string) => (ci ? s.toLowerCase() : s);
+
+    function parse(text: string): ConfigDoc | null {
+        const nl = text.includes('\r\n') ? '\r\n' : '\n';
+        const lines: Line[] = text.split(/\r?\n/).map((t) => ({ text: t }));
+        const idx: Record<string, number> = {}; // norm(address) -> line index (last occurrence)
+        const order: string[] = []; // unique addresses (original casing), first-seen order
+        const sectionLast: Record<string, number> = {}; // norm(section) -> last line index inside it
+
+        const reindex = () => {
+            for (const k of Object.keys(idx)) delete idx[k];
+            for (const k of Object.keys(sectionLast)) delete sectionLast[k];
+            order.length = 0;
+            let cur = '';
+            lines.forEach((line, i) => {
+                const sm = line.text.match(SECTION);
+                if (sm) {
+                    cur = sm[1].trim();
+                    line.section = cur;
+                    line.key = undefined;
+                    sectionLast[norm(cur)] = i;
+                    return;
+                }
+                line.section = cur;
+                if (COMMENT.test(line.text) || line.text.trim() === '') {
+                    line.key = undefined;
+                    return;
+                }
+                const m = line.text.match(KV);
+                if (!m) {
+                    line.key = undefined;
+                    return;
+                }
+                const key = m[1].trim();
+                const a = addr(cur, key);
+                const na = norm(a);
+                line.key = key;
+                if (!(na in idx)) order.push(a);
+                idx[na] = i;
+                sectionLast[norm(cur)] = i;
+            });
+        };
+        reindex();
+        if (order.length === 0) return null; // no key=value pairs -> not an INI we can edit
+
+        return {
+            keys: () => order,
+            normKey: (a) => norm(a),
+            has: (a) => norm(a) in idx,
+            getRaw: (a) => {
+                const i = idx[norm(a)];
+                if (i === undefined) return undefined;
+                const m = lines[i].text.match(KV);
+                return m ? m[2] : undefined;
+            },
+            setRaw: (a, val) => {
+                const i = idx[norm(a)];
+                if (i !== undefined) {
+                    // Replace only the value; keep the file's original key text/casing.
+                    const eq = lines[i].text.indexOf('=');
+                    lines[i] = { text: (eq >= 0 ? lines[i].text.slice(0, eq + 1) : `${addrKey(a)}=`) + val };
+                    reindex();
+                    return;
+                }
+                const section = addrSection(a);
+                const line: Line = { text: `${addrKey(a)}=${val}` };
+                if (norm(section) in sectionLast) {
+                    lines.splice(sectionLast[norm(section)] + 1, 0, line);
+                } else if (section === '') {
+                    lines.unshift(line);
+                } else {
+                    if (lines.length && lines[lines.length - 1].text.trim() !== '') lines.push({ text: '' });
+                    lines.push({ text: `[${section}]` }, line);
+                }
+                reindex();
+            },
+            remove: (a) => {
+                const i = idx[norm(a)];
+                if (i === undefined) return;
+                lines.splice(i, 1);
+                reindex();
+            },
+            sectionOf: (a) => addrSection(a),
+            labelOf: (a) => addrKey(a),
+            serialize: () => lines.map((l) => l.text).join(nl),
+        };
+    }
+
+    return { id, codec, parse };
+}
+
+/** Default multi-section INI (case-sensitive, True/False booleans). */
+export const iniFormat = makeIniFormat('ini');
