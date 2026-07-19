@@ -1,5 +1,5 @@
 /**
- * Source-engine family — all share the `server.cfg` convar format and a common
+ * Source-engine family - all share the `server.cfg` convar format and a common
  * schema, differing only by the mod-folder path and a handful of game-specific
  * convars. Entries are generated here and spread into the main registry.
  *
@@ -57,7 +57,7 @@ const shared: Group[] = [
             b('sv_allowdownload', 'Allow client downloads'),
             b('sv_allowupload', 'Allow client uploads'),
             sel('sv_pure', 'File purity enforcement', ['-1', '0', '1', '2']),
-            n('sv_maxrate', 'Max client rate (bytes/s, 0 = ∞)'),
+            n('sv_maxrate', 'Max client rate (bytes/s, 0 = unlimited)'),
             n('sv_maxupdaterate', 'Max updates/sec'),
             n('sv_timeout', 'Client timeout (s)'),
             n('sv_visiblemaxplayers', 'Slots shown in browser (-1 = real)'),
@@ -74,8 +74,8 @@ const extras: Record<string, Group> = {
         fields: [
             n('mp_maxrounds', 'Max rounds'),
             n('mp_roundtime', 'Round time (min)'),
-            n('mp_roundtime_defuse', 'Round time — defuse (min)'),
-            n('mp_roundtime_hostage', 'Round time — hostage (min)'),
+            n('mp_roundtime_defuse', 'Round time - defuse (min)'),
+            n('mp_roundtime_hostage', 'Round time - hostage (min)'),
             n('mp_freezetime', 'Freeze time (s)'),
             n('mp_buytime', 'Buy time (s)'),
             n('mp_startmoney', 'Starting money'),

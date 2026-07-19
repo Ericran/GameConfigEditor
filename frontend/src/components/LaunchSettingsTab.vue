@@ -5,17 +5,17 @@ import type { ServerTabProps } from '@gameap/plugin-sdk';
 import { useServerAbilities } from '@gameap/plugin-sdk';
 
 /**
- * "Launch Settings" server tab — edits a server's start-command variables
+ * "Launch Settings" server tab - edits a server's start-command variables
  * through GameAP's structured settings API, rather than a config file. This is
  * the only editor for games whose settings live entirely in launch args
- * (Valheim: name/world/password/port/public/crossplay/…), and a useful extra
+ * (Valheim: name/world/password/port/public/crossplay/...), and a useful extra
  * for any game whose game-mod declares vars.
  *
  *   read : GET  /api/servers/{id}/settings  -> [{ name, value, type, label, admin_var }]
  *   save : PUT  /api/servers/{id}/settings  <- [{ name, value }]
  *
  * The settings list is self-describing, so this component renders whatever the
- * game-mod declares — no per-game schema. Writes require the non-admin
+ * game-mod declares - no per-game schema. Writes require the non-admin
  * `game-server-settings` ability (admins bypass); without it the form is
  * read-only. Degrades gracefully when the panel exposes no settings.
  */
@@ -74,7 +74,7 @@ async function load() {
         for (const d of list) values[d.name] = d.value;
         dirty.value = false;
     } catch (e: any) {
-        // 404/405 → this panel version doesn't expose the settings API.
+        // 404/405 -> this panel version doesn't expose the settings API.
         if (e?.response && [404, 405, 501].includes(e.response.status)) unsupported.value = true;
         else error.value = errMsg(e, 'Failed to load launch settings');
     } finally {
@@ -123,7 +123,7 @@ load();
         </div>
 
         <div v-if="loading" class="p-6 text-center text-stone-500 dark:text-stone-400">
-            <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading launch settings…
+            <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading launch settings...
         </div>
 
         <div v-else-if="unsupported" class="p-4 text-stone-500 dark:text-stone-400">
@@ -139,7 +139,7 @@ load();
                 v-if="!canEdit"
                 class="m-2 rounded border border-amber-400 bg-amber-50 px-3 py-1.5 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
             >
-                <i class="fa-solid fa-lock mr-1"></i>You don't have the <code>game-server-settings</code> permission —
+                <i class="fa-solid fa-lock mr-1"></i>You don't have the <code>game-server-settings</code> permission -
                 these are read-only.
             </div>
 
@@ -184,7 +184,7 @@ load();
             </div>
 
             <div class="border-t border-stone-200 dark:border-stone-700 p-2 flex items-center justify-end gap-2">
-                <span v-if="saving" class="text-xs text-stone-400">Saving…</span>
+                <span v-if="saving" class="text-xs text-stone-400">Saving...</span>
                 <button
                     class="rounded bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="!dirty || !canEdit || saving"

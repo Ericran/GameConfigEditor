@@ -1,5 +1,5 @@
 /**
- * Game registry — the single source of truth mapping a GameAP `game_id` to the
+ * Game registry - the single source of truth mapping a GameAP `game_id` to the
  * config file(s) we can edit, the format that parses them, and (optionally) a
  * curated field schema and guardrails.
  *
@@ -17,17 +17,17 @@ import { arkGameUserSettingsSchema, arkGameIniSchema } from './schemas/ark';
 import { pzSchema } from './schemas/pz';
 import { sourceGames } from './source';
 
-// ARK/Unreal INI keys are case-insensitive — match them that way so a schema
+// ARK/Unreal INI keys are case-insensitive - match them that way so a schema
 // field and a differently-cased file key don't produce a duplicate.
 const arkIni = makeIniFormat('ark-ini', { caseInsensitive: true });
 
 const ARK_DIR = '/ShooterGame/Saved/Config/LinuxServer';
 // Shown when the file fails to load: PZ writes under $HOME/Zomboid, which is
-// commonly OUTSIDE the server directory the panel can read — so a 500 here
+// commonly OUTSIDE the server directory the panel can read - so a 500 here
 // usually means the config is mapped outside the server folder, not missing.
 const PZ_LOAD_HINT =
-    'The server config may be mapped outside the server directory, so the panel can’t read it. Project Zomboid ' +
-    'writes to $HOME/Zomboid by default — add  -cachedir=/srv/gameap/servers/<server_folder>/Zomboid  to the ' +
+    'The server config may be mapped outside the server directory, so the panel cannot read it. Project Zomboid ' +
+    'writes to $HOME/Zomboid by default - add  -cachedir=/srv/gameap/servers/<server_folder>/Zomboid  to the ' +
     'start command (or start-server.sh) so it writes inside the server folder, then move any existing ~/Zomboid ' +
     'there. The filename also tracks the configured server name (default servertest.ini).';
 
@@ -45,7 +45,7 @@ export interface GameConfig {
     format: Format;
     /** Curated labelled schema; omit for generic-only editing. */
     schema?: Schema;
-    /** Warn that the game overwrites this file on shutdown — stop before saving. */
+    /** Warn that the game overwrites this file on shutdown - stop before saving. */
     stopWarning?: boolean;
     /** Relay/public-IP guardrail: warn + one-click clear of these keys. */
     relayGuard?: { ipKey: string; portKey?: string };

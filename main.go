@@ -7,8 +7,8 @@
 // compiled Vue frontend bundle. The actual editor logic (per-game formats and
 // schemas) lives in ./frontend.
 //
-// The host (GameAP) reads and writes the files for us — see the frontend's
-// file-editor registration — so this backend needs no filesystem or
+// The host (GameAP) reads and writes the files for us - see the frontend's
+// file-editor registration - so this backend needs no filesystem or
 // server-control host calls.
 package main
 

@@ -1,11 +1,11 @@
 /**
- * Format layer — the contract every config format implements.
+ * Format layer - the contract every config format implements.
  *
  * A GameAP server config can be a Palworld one-liner, a flat key=value file, a
  * multi-section INI, a Source `server.cfg`, etc. Each of those is a `Format`
  * that knows how to (a) parse text into a round-trippable `ConfigDoc`, and (b)
  * convert typed form values to/from that format's raw on-disk spelling (its
- * `Codec` — e.g. booleans are `True`/`False` in Palworld/INI but `true`/`false`
+ * `Codec` - e.g. booleans are `True`/`False` in Palworld/INI but `true`/`false`
  * in Minecraft and `1`/`0` in Source convars).
  *
  * The editor component is format-agnostic: it drives a `ConfigDoc` through a
@@ -41,7 +41,7 @@ export type Schema = Group[];
  *
  * An "address" is the canonical string used to read/write one value. For flat
  * formats it's just the key; for sectioned formats (INI) it's `section\0key`
- * built by the format — callers only ever pass addresses that came from a
+ * built by the format - callers only ever pass addresses that came from a
  * schema `FieldDef.key` or from `keys()`, never ones they construct by hand.
  */
 export interface ConfigDoc {

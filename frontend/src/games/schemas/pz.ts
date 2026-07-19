@@ -1,8 +1,8 @@
 /**
- * Project Zomboid — `<servername>.ini` (default `servertest.ini`). Flat
+ * Project Zomboid - `<servername>.ini` (default `servertest.ini`). Flat
  * key=value, `#` comments, lowercase true/false booleans; list values
  * (Mods, WorkshopItems, Map) are semicolon-separated strings. SandboxVars.lua
- * is intentionally out of scope (a Lua table — deferred). The 24
+ * is intentionally out of scope (a Lua table - deferred). The 24
  * AntiCheatProtectionType* keys fall through to "Advanced" rather than being
  * surfaced as first-class fields.
  */

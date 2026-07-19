@@ -1,7 +1,7 @@
 {
   "name": "gameap-game-config-editor",
   "version": "2026.7.0",
-  "description": "Game server config editor — GameAP plugin frontend",
+  "description": "Game server config editor - GameAP plugin frontend",
   "type": "module",
   "main": "./dist/plugin.js",
   "scripts": {

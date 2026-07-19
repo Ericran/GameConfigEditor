@@ -148,7 +148,7 @@ const inputClass =
                 server before saving or your changes will be lost.</template
             >
             <template v-else
-                >This server appears to be RUNNING. Some games only read this file at startup — restart the
+                >This server appears to be RUNNING. Some games only read this file at startup - restart the
                 server for changes to take effect.</template
             >
         </div>
@@ -204,7 +204,7 @@ const inputClass =
                     <i :class="group.icon"></i>{{ group.title }}
                 </h3>
                 <p v-if="group.id === 'advanced'" class="mb-2 text-xs text-stone-400">
-                    Keys not in the schema — edited as raw values, preserved verbatim.
+                    Keys not in the schema - edited as raw values, preserved verbatim.
                 </p>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">

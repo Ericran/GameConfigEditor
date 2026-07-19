@@ -1,4 +1,4 @@
-/** Minecraft (Java) server.properties — curated schema; unknown keys fall to Advanced. */
+/** Minecraft (Java) server.properties - curated schema; unknown keys fall to Advanced. */
 import type { Schema } from '../../formats/types';
 import { n, b, t, sel } from '../fields';
 

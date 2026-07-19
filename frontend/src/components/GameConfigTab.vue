@@ -6,13 +6,13 @@ import ConfigEditor from './ConfigEditor.vue';
 import { gamesFor, configPath, configDir, type GameConfig } from '../games/registry';
 
 /**
- * "Game Config" server tab — the front door to the editor for ANY supported
+ * "Game Config" server tab - the front door to the editor for ANY supported
  * game. GameAP can't gate a tab per game (its slot API has no game filter and a
  * static label), so this one tab appears on every server and adapts:
  *
- *  - supported game  → loads its config file(s) directly via the panel file API
+ *  - supported game  -> loads its config file(s) directly via the panel file API
  *    and hands the text to the generic ConfigEditor;
- *  - unsupported game → a short "not supported yet" message (no dead editor).
+ *  - unsupported game -> a short "not supported yet" message (no dead editor).
  *
  * A game may register several config files (e.g. ARK's GameUserSettings.ini +
  * Game.ini); a small selector switches between them.
@@ -26,7 +26,7 @@ const selected = ref<GameConfig | null>(configs[0] ?? null);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref<string | null>(null);
-// Only true after a failed LOAD (not a failed save) — gates the game's loadHint.
+// Only true after a failed LOAD (not a failed save) - gates the game's loadHint.
 const showLoadHint = ref(false);
 const notice = ref<string | null>(null);
 const content = ref<string | null>(null);
@@ -55,7 +55,7 @@ async function load() {
         content.value = typeof resp.data === 'string' ? resp.data : String(resp.data);
         reloadKey.value++;
     } catch (e: any) {
-        error.value = `Couldn’t load ${cfg.fileName} from ${configPath(cfg)}: ${errMsg(e, 'request failed')}`;
+        error.value = `Couldn't load ${cfg.fileName} from ${configPath(cfg)}: ${errMsg(e, 'request failed')}`;
         showLoadHint.value = true;
     } finally {
         loading.value = false;
@@ -78,7 +78,7 @@ async function onSave(newContent: string) {
         reloadKey.value++;
         notice.value = 'Saved.';
     } catch (e: any) {
-        error.value = `Couldn’t save ${cfg.fileName}: ${errMsg(e, 'request failed')}`;
+        error.value = `Couldn't save ${cfg.fileName}: ${errMsg(e, 'request failed')}`;
     } finally {
         saving.value = false;
     }
@@ -146,10 +146,10 @@ if (selected.value) load();
             </div>
 
             <div v-if="loading" class="p-6 text-center text-stone-500 dark:text-stone-400">
-                <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading {{ selected?.fileName }}…
+                <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading {{ selected?.fileName }}...
             </div>
 
-            <div v-if="saving" class="px-3 py-1 text-xs text-stone-400">Saving…</div>
+            <div v-if="saving" class="px-3 py-1 text-xs text-stone-400">Saving...</div>
 
             <ConfigEditor
                 v-if="!loading && content !== null && selected"

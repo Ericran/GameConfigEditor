@@ -1,5 +1,5 @@
 /**
- * Source / GoldSource `server.cfg` — one console command per line:
+ * Source / GoldSource `server.cfg` - one console command per line:
  * `convar value` or `convar "quoted value"`, `//` line comments, executed at
  * boot/map-change. Covers CS2/CS:GO/CS:S, TF2, Garry's Mod, L4D/L4D2, DoD:S,
  * HL2:DM, and (via the optional `set`/`seta` keyword) idTech/FiveM dialects.
@@ -22,7 +22,7 @@ const codec = makeCodec({
     unquoteText: unquoteDouble,
 });
 
-// set/seta/sets/setr/setu <name> <value> — idTech/FiveM; Source uses bare lines.
+// set/seta/sets/setr/setu <name> <value> - idTech/FiveM; Source uses bare lines.
 const KEYWORDS = new Set(['set', 'seta', 'sets', 'setr', 'setu']);
 
 type Line =

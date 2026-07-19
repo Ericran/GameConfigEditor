@@ -1,11 +1,11 @@
 /**
- * Palworld format — the original, genuinely unique one.
+ * Palworld format - the original, genuinely unique one.
  *
  * `PalWorldSettings.ini` is a header line plus one giant
  * `OptionSettings=(k=v,k=v,...)` line. We keep everything before the inner list
  * and everything from the closing `)` onward verbatim, parse the inner list
  * into an ordered key->raw map with a depth+quote-aware splitter, and always
- * regenerate just that one line on save — so a stray newline can't corrupt the
+ * regenerate just that one line on save - so a stray newline can't corrupt the
  * file and untouched keys keep their exact spelling.
  */
 import type { ConfigDoc, Format } from './types';
@@ -18,7 +18,7 @@ const codec = makeCodec({
     unquoteText: unquoteDouble,
 });
 
-/** Split a comma list at top level only — respects nested parens and quotes. */
+/** Split a comma list at top level only - respects nested parens and quotes. */
 function splitTopLevel(s: string): string[] {
     const out: string[] = [];
     let depth = 0;

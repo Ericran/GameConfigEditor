@@ -1,9 +1,9 @@
-# gameap-addon — Game Config Editor plugin
+# gameap-addon - Game Config Editor plugin
 
 A [GameAP](https://github.com/gameap/gameap) plugin that adds **structured,
 labelled editors for game-server config files** to the panel. Instead of
 hand-editing raw config (and risking a typo that resets the server to
-defaults), you get grouped form fields — per game, format-aware, round-tripping
+defaults), you get grouped form fields - per game, format-aware, round-tripping
 every key it doesn't surface.
 
 Started as a Palworld-only editor; now covers many games through a small set of
@@ -13,7 +13,7 @@ shared config-format parsers.
 
 | Game(s) | `game_id` | File | Format |
 |---|---|---|---|
-| Palworld | `palworld` | `PalWorldSettings.ini` | `OptionSettings=(…)` one-liner |
+| Palworld | `palworld` | `PalWorldSettings.ini` | `OptionSettings=(...)` one-liner |
 | Minecraft (Java) | `minecraft` | `server.properties` | flat `key=value` |
 | ARK: Survival Evolved | `ark` | `GameUserSettings.ini`, `Game.ini` | multi-section INI (case-insensitive) |
 | Project Zomboid | `projectzomboid` | `servertest.ini` | flat `key=value` |
@@ -22,43 +22,43 @@ shared config-format parsers.
 | Garry's Mod | `garrysmod` | `server.cfg` | Source convars |
 | Left 4 Dead 1 / 2 | `l4d` `l4d2` | `server.cfg` | Source convars |
 | DoD:S, HL2:DM | `dods` `hl2mp` | `server.cfg` | Source convars |
-| Valheim & any game | *(any)* | — | launch variables (see Launch Settings) |
+| Valheim & any game | *(any)* | - | launch variables (see Launch Settings) |
 
 Any game whose config matches a known format also works via the generic editor
-even without a curated schema — keys are parsed, typed, and grouped by section,
+even without a curated schema - keys are parsed, typed, and grouped by section,
 with a raw-text fallback when a file doesn't parse.
 
 Games whose settings aren't in a file (Valheim: name/world/password/port/
-crossplay/…) are handled by the **Launch Settings** tab instead of a file editor.
+crossplay/...) are handled by the **Launch Settings** tab instead of a file editor.
 
 > **Manual-add games:** Palworld and Project Zomboid aren't in GameAP's default
-> catalog — they're added manually, so their `game_id` is whatever your panel
+> catalog - they're added manually, so their `game_id` is whatever your panel
 > uses. Palworld is `palworld`; Project Zomboid is assumed `projectzomboid`. If
 > your PZ server uses a different code, the "Game Config" tab shows the actual
-> code (it says *"not available for …(`yourcode`)"*) — change the one `gameId`
+> code (it says *"not available for ...(`yourcode`)"*) - change the one `gameId`
 > in `frontend/src/games/registry.ts` to match.
 
 ## How it works
 
 A GameAP plugin is a single `.wasm` file with two parts:
 
-- **`main.go`** — a thin Go/WASM shell implementing `PluginService`. It only
+- **`main.go`** - a thin Go/WASM shell implementing `PluginService`. It only
   reports plugin info and hands the panel the compiled frontend bundle. It uses
-  no filesystem/server-control host calls — **the panel reads and writes the
+  no filesystem/server-control host calls - **the panel reads and writes the
   files for us**.
-- **`frontend/`** — a Vue 3 + Vite bundle. All the logic lives here:
+- **`frontend/`** - a Vue 3 + Vite bundle. All the logic lives here:
 
 ```
 src/
   formats/            parse/serialise per format, shared ConfigDoc contract
     types.ts          ConfigDoc / Codec / Format interfaces
     shared.ts         codec factory + section-address encoding
-    palworld.ts       OptionSettings=(…) one-liner
+    palworld.ts       OptionSettings=(...) one-liner
     keyvalue.ts       flat key=value (Minecraft, PZ, Terraria)
     ini.ts            multi-section INI, optional case-insensitivity (ARK)
     convar.ts         Source/GoldSource server.cfg convars
   games/
-    registry.ts       game_id → { file, dir, format, schema?, guardrails }
+    registry.ts       game_id -> { file, dir, format, schema?, guardrails }
     source.ts         all Source-family entries (shared convar schema)
     fields.ts         terse schema field constructors (n/b/t/sel)
     schemas/          curated per-game field schemas
@@ -76,7 +76,7 @@ are quoted or not per format). The editor is entirely generic: it drives a
 `ConfigDoc` through its codec, guided by a per-game **schema** (labelled groups),
 and renders anything not in the schema generically so nothing is ever hidden.
 
-### Access — two surfaces
+### Access - two surfaces
 
 - **"Game Config" server tab.** GameAP can't gate a tab per game (its slot API
   has no game filter and a static label), so there's **one** tab on every server
@@ -90,7 +90,7 @@ and renders anything not in the schema generically so nothing is ever hidden.
   registry.
 - **"Launch Settings" server tab.** Edits a server's start-command variables
   through GameAP's settings API (`GET`/`PUT /api/servers/{id}/settings`) instead
-  of a file — the only editor for games whose config *is* launch args (Valheim).
+  of a file - the only editor for games whose config *is* launch args (Valheim).
   The settings list is self-describing, so the form adapts to whatever the game
   mod declares (no per-game schema). Writes need the non-admin
   `game-server-settings` ability; without it the form is read-only, and it
@@ -101,7 +101,7 @@ and renders anything not in the schema generically so nothing is ever hidden.
 - Per-game labelled schemas + a dynamic section/"Advanced" catch-all for
   unknown keys, and a raw-text fallback if a file doesn't parse.
 - **Relay guardrail** (Palworld): warns when `PublicIP` is set and offers a
-  one-click clear — don't leak your home IP behind a WireGuard relay.
+  one-click clear - don't leak your home IP behind a WireGuard relay.
 - **Running-server warning:** detects `process_active` and reminds you to stop
   the server before saving (games that rewrite config on shutdown) or restart it
   for changes to take effect.
@@ -119,7 +119,7 @@ and renders anything not in the schema generically so nothing is ever hidden.
 
 ## Build
 
-Requires only **Docker** and **git** on the host — TinyGo and Node run in
+Requires only **Docker** and **git** on the host - TinyGo and Node run in
 containers.
 
 ```sh
@@ -129,7 +129,7 @@ containers.
 This will:
 1. clone the GameAP SDK into `./.sdk/gameap` at the tag matching your panel
    (`SDK_TAG`, default `v4.3.0`);
-2. build the frontend bundle (Vite) → `frontend/dist/plugin.js` + `plugin.css`;
+2. build the frontend bundle (Vite) -> `frontend/dist/plugin.js` + `plugin.css`;
 3. compile everything to `gameap-addon.wasm` with TinyGo.
 
 For frontend-only iteration you can `cd frontend && npm install && npm run build`
@@ -137,19 +137,19 @@ with a local Node (no Docker needed for the JS bundle).
 
 ## Install
 
-In the panel: **Administration → Plugins → Upload**, select
+In the panel: **Administration -> Plugins -> Upload**, select
 `gameap-addon.wasm`. Open a server's **Game Config** tab, or browse to a
 supported config file in the file manager.
 
 > **Upgrading from the Palworld-only plugin:** the plugin id changed
-> (`palworld-settings` → `game-config-editor`), so GameAP treats this as a new
+> (`palworld-settings` -> `game-config-editor`), so GameAP treats this as a new
 > plugin. Upload the new `.wasm`, then remove the old "Palworld Settings Editor".
 
 ## Build notes / gotchas (resolved)
 
 - **Go 1.26 required.** The GameAP v4.3.0 SDK declares `go 1.26` /
-  `toolchain go1.26.5`, so the TinyGo image must support Go 1.26 — TinyGo 0.39
-  (Go ≤1.25) fails. Pinned to `tinygo/tinygo:0.41.1`.
+  `toolchain go1.26.5`, so the TinyGo image must support Go 1.26 - TinyGo 0.39
+  (Go <=1.25) fails. Pinned to `tinygo/tinygo:0.41.1`.
 - **gRPC stub trim.** `pkg/plugin/proto` pulls in `pkg/proto`, which ships
   host-side `*_grpc.pb.go` files whose TLS code TinyGo can't compile. `build.sh`
   deletes them from the vendored SDK (they're unused by the guest).
@@ -165,10 +165,10 @@ supported config file in the file manager.
 - Config paths are disk-root-relative (the `server` disk = the server's install
   dir). The file-manager editor works regardless of path; only the tab's
   direct-load uses the registry path.
-- **ARK** paths assume a native Linux server (`…/LinuxServer/…`). ARK: Survival
-  Ascended runs under Proton and uses `…/WindowsServer/…` instead.
+- **ARK** paths assume a native Linux server (`.../LinuxServer/...`). ARK: Survival
+  Ascended runs under Proton and uses `.../WindowsServer/...` instead.
 - **Project Zomboid** writes `Zomboid/` under the process `$HOME`, which may be
   outside the server dir. If the tab can't find the file, browse to it in the
   file manager. The filename also tracks the configured server name.
 - **CS2** keeps `server.cfg` at `game/csgo/cfg/` (extra `game/` layer) and
-  layers gameplay convars via `gamemode_*_server.cfg` — see the inline note.
+  layers gameplay convars via `gamemode_*_server.cfg` - see the inline note.

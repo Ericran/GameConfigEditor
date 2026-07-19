@@ -1,5 +1,5 @@
 /**
- * Flat `key=value` format — no sections. Covers Minecraft `server.properties`,
+ * Flat `key=value` format - no sections. Covers Minecraft `server.properties`,
  * Terraria `serverconfig.txt`, TeamSpeak `ts3server.ini`, and similar
  * java-properties-style files.
  *
@@ -14,7 +14,7 @@ const COMMENT = /^\s*[#!;]/;
 const KV = /^\s*([^=\s][^=]*?)\s*=(.*)$/;
 
 export interface KeyValueOptions {
-    /** Codec overrides — e.g. Minecraft/Terraria use lowercase true/false. */
+    /** Codec overrides - e.g. Minecraft/Terraria use lowercase true/false. */
     codec?: Partial<CodecOptions>;
 }
 

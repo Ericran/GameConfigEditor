@@ -1,5 +1,5 @@
 /**
- * Multi-section INI — `[Section]` headers with `key=value` lines under each.
+ * Multi-section INI - `[Section]` headers with `key=value` lines under each.
  * Covers ARK (`GameUserSettings.ini`, `Game.ini`) and other Unreal-style
  * configs. Section-less files parse as one anonymous ('') section.
  *

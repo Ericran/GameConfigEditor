@@ -1,4 +1,4 @@
-/** Palworld PalWorldSettings.ini — full schema across 11 groups. */
+/** Palworld PalWorldSettings.ini - full schema across 11 groups. */
 import type { Schema } from '../../formats/types';
 import { n, b, t, sel } from '../fields';
 
@@ -59,7 +59,7 @@ export const palworldSchema: Schema = [
     },
     {
         id: 'rates_progress',
-        title: 'Rates — Progression & Gathering',
+        title: 'Rates - Progression & Gathering',
         icon: 'fa-solid fa-gauge-high',
         fields: [
             n('ExpRate', 'EXP rate'),
@@ -75,13 +75,13 @@ export const palworldSchema: Schema = [
     },
     {
         id: 'rates_combat',
-        title: 'Rates — Combat & Structures',
+        title: 'Rates - Combat & Structures',
         icon: 'fa-solid fa-gavel',
         fields: [
-            n('PalDamageRateAttack', 'Pal damage — attack'),
-            n('PalDamageRateDefense', 'Pal damage — defense'),
-            n('PlayerDamageRateAttack', 'Player damage — attack'),
-            n('PlayerDamageRateDefense', 'Player damage — defense'),
+            n('PalDamageRateAttack', 'Pal damage - attack'),
+            n('PalDamageRateDefense', 'Pal damage - defense'),
+            n('PlayerDamageRateAttack', 'Player damage - attack'),
+            n('PlayerDamageRateDefense', 'Player damage - defense'),
             n('BuildObjectHpRate', 'Structure HP rate'),
             n('BuildObjectDamageRate', 'Structure damage rate'),
             n('BuildObjectDeteriorationDamageRate', 'Structure decay rate'),
@@ -89,7 +89,7 @@ export const palworldSchema: Schema = [
     },
     {
         id: 'rates_survival',
-        title: 'Rates — Survival',
+        title: 'Rates - Survival',
         icon: 'fa-solid fa-heart-pulse',
         fields: [
             n('PlayerStomachDecreaceRate', 'Player hunger drain'),
@@ -130,7 +130,7 @@ export const palworldSchema: Schema = [
             n('MaxBuildingLimitNum', 'Building limit (0 = unlimited)'),
             b('bAutoResetGuildNoOnlinePlayers', 'Auto-reset empty guilds'),
             n('AutoResetGuildTimeNoOnlinePlayers', 'Guild reset time (h)'),
-            b('bCanPickupOtherGuildDeathPenaltyDrop', 'Pick up other guilds’ drops'),
+            b('bCanPickupOtherGuildDeathPenaltyDrop', 'Pick up drops from other guilds'),
             b('bEnableDefenseOtherGuildPlayer', 'Defend vs other guilds'),
             b('bInvisibleOtherGuildBaseCampAreaFX', 'Hide other guild base FX'),
             b('bBuildAreaLimit', 'Build area limit'),

@@ -1,11 +1,11 @@
 /**
- * ARK: Survival Evolved — GameUserSettings.ini + Game.ini.
+ * ARK: Survival Evolved - GameUserSettings.ini + Game.ini.
  *
  * Keys live under several INI sections, so field addresses are section-qualified
  * via addr(). ARK INI keys are case-insensitive (handled by the ci INI format),
  * booleans are True/False, strings unquoted. Repeated/array keys
  * (PerLevelStatsMultiplier[...], engram overrides, etc.) are intentionally NOT
- * in the schema — they fall through to the raw "Advanced" groups untouched.
+ * in the schema - they fall through to the raw "Advanced" groups untouched.
  */
 import type { FieldDef, Schema } from '../../formats/types';
 import { addr } from '../../formats/shared';
@@ -48,7 +48,7 @@ export const arkGameUserSettingsSchema: Schema = [
             nf(SS, 'HarvestAmountMultiplier', 'Harvest amount'),
             nf(SS, 'HarvestHealthMultiplier', 'Resource node HP'),
             nf(SS, 'ResourcesRespawnPeriodMultiplier', 'Resource respawn time (lower = faster)'),
-            nf(SS, 'DifficultyOffset', 'Difficulty offset (0–1)'),
+            nf(SS, 'DifficultyOffset', 'Difficulty offset (0-1)'),
             nf(SS, 'OverrideOfficialDifficulty', 'Override difficulty (5 = max lvl 150)'),
             nf(SS, 'DayCycleSpeedScale', 'Day/night cycle speed'),
             nf(SS, 'DayTimeSpeedScale', 'Daytime length'),
