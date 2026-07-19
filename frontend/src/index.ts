@@ -10,7 +10,7 @@ import { games } from './games/registry';
 export const gameConfigPlugin: PluginDefinition = {
     id: 'game-config-editor',
     name: 'Game Config Editor',
-    version: '2026.7.0',
+    version: '2026.7.1',
     apiVersion: '1.0',
     description: 'Structured editors for game server config files (Palworld, Minecraft, and more)',
     author: 'psinetreject',

@@ -11,10 +11,12 @@ import type { Format, Schema } from '../formats/types';
 import { palworldFormat } from '../formats/palworld';
 import { keyvalueFormat } from '../formats/keyvalue';
 import { makeIniFormat } from '../formats/ini';
+import { jsonFormat } from '../formats/json';
 import { palworldSchema } from './schemas/palworld';
 import { minecraftSchema } from './schemas/minecraft';
 import { arkGameUserSettingsSchema, arkGameIniSchema } from './schemas/ark';
 import { pzSchema } from './schemas/pz';
+import { vrisingHostSchema } from './schemas/vrising';
 import { sourceGames } from './source';
 
 // ARK/Unreal INI keys are case-insensitive - match them that way so a schema
@@ -30,6 +32,12 @@ const PZ_LOAD_HINT =
     'writes to $HOME/Zomboid by default - add  -cachedir=/srv/gameap/servers/<server_folder>/Zomboid  to the ' +
     'start command (or start-server.sh) so it writes inside the server folder, then move any existing ~/Zomboid ' +
     'there. The filename also tracks the configured server name (default servertest.ini).';
+// V Rising does NOT generate these under the persistent data path on its own -
+// it only creates the list files there. Copy the templates in once.
+const VRISING_LOAD_HINT =
+    'V Rising does not create this on its own. Copy the template from ' +
+    'VRisingServer_Data/StreamingAssets/Settings/ into save-data/Settings/ (the -persistentDataPath), then ' +
+    'restart the server. Ports live in this file (Port 9876 / QueryPort 9877), not on the command line.';
 
 export interface GameConfig {
     /** Matches `server.game_id` and a file-editor's `match.gameCode`. */
@@ -100,6 +108,28 @@ export const games: GameConfig[] = [
         format: keyvalueFormat,
         schema: pzSchema,
         loadHint: PZ_LOAD_HINT,
+    },
+    {
+        // V Rising's game_id on this panel is the game's Steam app id (1604030),
+        // NOT the dedicated-server app id. Config is JSON under the persistent
+        // data path (we launch with -persistentDataPath ./save-data).
+        gameId: '1604030',
+        gameName: 'V Rising',
+        fileName: 'ServerHostSettings.json',
+        dir: '/save-data/Settings',
+        format: jsonFormat,
+        schema: vrisingHostSchema,
+        loadHint: VRISING_LOAD_HINT,
+    },
+    {
+        gameId: '1604030',
+        gameName: 'V Rising',
+        fileName: 'ServerGameSettings.json',
+        dir: '/save-data/Settings',
+        format: jsonFormat,
+        // No schema: gameplay rules are many and deeply nested - the generic
+        // editor renders every key grouped by its JSON section.
+        loadHint: VRISING_LOAD_HINT,
     },
     ...sourceGames,
 ];

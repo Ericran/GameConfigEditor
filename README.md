@@ -17,6 +17,7 @@ shared config-format parsers.
 | Minecraft (Java) | `minecraft` | `server.properties` | flat `key=value` |
 | ARK: Survival Evolved | `ark` | `GameUserSettings.ini`, `Game.ini` | multi-section INI (case-insensitive) |
 | Project Zomboid | `projectzomboid` | `servertest.ini` | flat `key=value` |
+| V Rising | `1604030` | `ServerHostSettings.json`, `ServerGameSettings.json` | JSON |
 | CS2 / CS:GO / CS:S | `cs2` `csgo` `cssource` | `server.cfg` | Source convars |
 | Team Fortress 2 | `tf2` | `server.cfg` | Source convars |
 | Garry's Mod | `garrysmod` | `server.cfg` | Source convars |
@@ -31,12 +32,14 @@ with a raw-text fallback when a file doesn't parse.
 Games whose settings aren't in a file (Valheim: name/world/password/port/
 crossplay/...) are handled by the **Launch Settings** tab instead of a file editor.
 
-> **Manual-add games:** Palworld and Project Zomboid aren't in GameAP's default
-> catalog - they're added manually, so their `game_id` is whatever your panel
-> uses. Palworld is `palworld`; Project Zomboid is assumed `projectzomboid`. If
-> your PZ server uses a different code, the "Game Config" tab shows the actual
-> code (it says *"not available for ...(`yourcode`)"*) - change the one `gameId`
-> in `frontend/src/games/registry.ts` to match.
+> **Manual-add games:** Palworld, Project Zomboid, and V Rising aren't in
+> GameAP's default catalog - they're added manually, so their `game_id` is
+> whatever your panel uses. Palworld is `palworld`; Project Zomboid is assumed
+> `projectzomboid`; V Rising is assumed `1604030` (the game's Steam app id, which
+> is how it was added here - not the dedicated-server app id `1829350`). If your
+> server uses a different code, the "Game Config" tab shows the actual code (it
+> says *"not available for ...(`yourcode`)"*) - change the one `gameId` in
+> `frontend/src/games/registry.ts` to match.
 
 ## How it works
 
