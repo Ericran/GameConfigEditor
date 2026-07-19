@@ -22,10 +22,14 @@ import { sourceGames } from './source';
 const arkIni = makeIniFormat('ark-ini', { caseInsensitive: true });
 
 const ARK_DIR = '/ShooterGame/Saved/Config/LinuxServer';
-const PZ_NOTE =
-    'Project Zomboid stores this at $HOME/Zomboid/Server/<servername>.ini. If the tab can’t load it, the path ' +
-    'depends on the server’s HOME — browse to the file in the File Manager instead. The filename tracks the ' +
-    'configured server name (default servertest).';
+// Shown when the file fails to load: PZ writes under $HOME/Zomboid, which is
+// commonly OUTSIDE the server directory the panel can read — so a 500 here
+// usually means the config is mapped outside the server folder, not missing.
+const PZ_LOAD_HINT =
+    'The server config may be mapped outside the server directory, so the panel can’t read it. Project Zomboid ' +
+    'writes to $HOME/Zomboid by default — add  -cachedir=/srv/gameap/servers/<server_folder>/Zomboid  to the ' +
+    'start command (or start-server.sh) so it writes inside the server folder, then move any existing ~/Zomboid ' +
+    'there. The filename also tracks the configured server name (default servertest.ini).';
 
 export interface GameConfig {
     /** Matches `server.game_id` and a file-editor's `match.gameCode`. */
@@ -45,8 +49,10 @@ export interface GameConfig {
     stopWarning?: boolean;
     /** Relay/public-IP guardrail: warn + one-click clear of these keys. */
     relayGuard?: { ipKey: string; portKey?: string };
-    /** Informational note shown as a banner above the form (e.g. CS2 config layering). */
+    /** Informational note shown as a banner above the form ON SUCCESSFUL LOAD (e.g. CS2 config layering). */
     note?: string;
+    /** Actionable guidance shown in the error banner when the file FAILS to load (e.g. config mapped outside the server dir). */
+    loadHint?: string;
 }
 
 export const games: GameConfig[] = [
@@ -93,7 +99,7 @@ export const games: GameConfig[] = [
         dir: '/Zomboid/Server',
         format: keyvalueFormat,
         schema: pzSchema,
-        note: PZ_NOTE,
+        loadHint: PZ_LOAD_HINT,
     },
     ...sourceGames,
 ];

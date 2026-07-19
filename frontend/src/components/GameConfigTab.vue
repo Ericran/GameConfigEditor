@@ -26,6 +26,8 @@ const selected = ref<GameConfig | null>(configs[0] ?? null);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref<string | null>(null);
+// Only true after a failed LOAD (not a failed save) — gates the game's loadHint.
+const showLoadHint = ref(false);
 const notice = ref<string | null>(null);
 const content = ref<string | null>(null);
 const reloadKey = ref(0);
@@ -40,6 +42,7 @@ async function load() {
     const cfg = selected.value;
     if (!cfg) return;
     error.value = null;
+    showLoadHint.value = false;
     notice.value = null;
     loading.value = true;
     content.value = null;
@@ -52,7 +55,8 @@ async function load() {
         content.value = typeof resp.data === 'string' ? resp.data : String(resp.data);
         reloadKey.value++;
     } catch (e: any) {
-        error.value = errMsg(e, `Failed to load ${cfg.fileName}`);
+        error.value = `Couldn’t load ${cfg.fileName} from ${configPath(cfg)}: ${errMsg(e, 'request failed')}`;
+        showLoadHint.value = true;
     } finally {
         loading.value = false;
     }
@@ -74,7 +78,7 @@ async function onSave(newContent: string) {
         reloadKey.value++;
         notice.value = 'Saved.';
     } catch (e: any) {
-        error.value = errMsg(e, `Failed to save ${cfg.fileName}`);
+        error.value = `Couldn’t save ${cfg.fileName}: ${errMsg(e, 'request failed')}`;
     } finally {
         saving.value = false;
     }
@@ -122,12 +126,23 @@ if (selected.value) load();
             </div>
             <div
                 v-if="error"
-                class="m-2 flex items-center justify-between gap-3 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
+                class="m-2 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
             >
-                <span><i class="fa-solid fa-circle-exclamation mr-1"></i>{{ error }}</span>
-                <button class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" @click="load">
-                    Retry
-                </button>
+                <div class="flex items-center justify-between gap-3">
+                    <span><i class="fa-solid fa-circle-exclamation mr-1"></i>{{ error }}</span>
+                    <button
+                        class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                        @click="load"
+                    >
+                        Retry
+                    </button>
+                </div>
+                <p
+                    v-if="showLoadHint && selected?.loadHint"
+                    class="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-red-600/90 dark:text-red-300/80"
+                >
+                    <i class="fa-solid fa-circle-info mr-1"></i>{{ selected.loadHint }}
+                </p>
             </div>
 
             <div v-if="loading" class="p-6 text-center text-stone-500 dark:text-stone-400">
