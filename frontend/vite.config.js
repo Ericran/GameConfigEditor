@@ -81,7 +81,7 @@ export default defineConfig({
             fileName: () => 'plugin.js',
             // Without this, cssFileName falls back to the package.json `name`
             // (because fileName is a function, not a string) and the stylesheet
-            // lands as gameap-game-config-editor.css. main.go embeds
+            // lands as gameap-gameconfigeditor.css. main.go embeds
             // dist/plugin.css, so name it that here rather than renaming it in
             // build.sh afterwards.
             cssFileName: 'plugin',

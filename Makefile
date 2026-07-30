@@ -1,4 +1,4 @@
-OUT ?= gameap-addon.wasm
+OUT ?= GameAP-GameConfigEditor.wasm
 
 .PHONY: build clean distclean
 

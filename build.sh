@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the game config editor GameAP plugin (.wasm) using Docker only.
+# Build the GameAP-GameConfigEditor plugin (.wasm) using Docker only.
 # Nothing needs to be installed on the host except Docker + git.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 SDK_TAG="${SDK_TAG:-v4.3.0}"                 # match the installed panel version
 NODE_IMAGE="${NODE_IMAGE:-node:22-bookworm}"
 TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (GameAP v4.3.0 SDK requires it)
-OUT="${OUT:-gameap-addon.wasm}"
+OUT="${OUT:-GameAP-GameConfigEditor.wasm}"
 U="$(id -u):$(id -g)"
 
 # Guard: the plugin version lives in three files and must match. Bump all three.

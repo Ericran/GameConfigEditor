@@ -1,4 +1,4 @@
-# gameap-addon - Game Config Editor plugin
+# GameAP-GameConfigEditor
 
 A [GameAP](https://github.com/gameap/gameap) plugin that adds **structured,
 labelled editors for game-server config files** to the panel. Instead of
@@ -143,7 +143,7 @@ This will:
    (`SDK_TAG`, default `v4.3.0`);
 2. build the frontend bundle (Vite, via `npm ci`) -> `frontend/dist/plugin.js` +
    `plugin.css`;
-3. compile everything to `gameap-addon.wasm` with TinyGo.
+3. compile everything to `GameAP-GameConfigEditor.wasm` with TinyGo.
 
 For frontend-only iteration you can `cd frontend && npm install && npm run build`
 with a local Node (no Docker needed for the JS bundle).
@@ -164,7 +164,7 @@ file byte-for-byte, and editing one key must rewrite exactly that key's line.
 ## Install
 
 In the panel: **Administration -> Plugins -> Upload**, select
-`gameap-addon.wasm`. Open a server's **Game Config** tab, or browse to a
+`GameAP-GameConfigEditor.wasm`. Open a server's **Game Config** tab, or browse to a
 supported config file in the file manager.
 
 > **Upgrading from the Palworld-only plugin:** the plugin id changed
