@@ -4,7 +4,7 @@
  * schema fields, which no compiler can validate for us.
  */
 import { describe, expect, it } from 'vitest';
-import { configDir, configPath, games, gamesFor, resolve } from './registry';
+import { configDir, configPath, games, gamesFor, resolve, resolveIn } from './registry';
 
 describe('resolve', () => {
     it('prefers an exact game + file match', () => {
@@ -19,19 +19,100 @@ describe('resolve', () => {
         expect(resolve('some-unknown-game', 'servertest.ini')!.gameName).toBe('Project Zomboid');
     });
 
-    it('does not borrow another game schema when several games share a file name', () => {
-        // Nine Source games register server.cfg; with no game we cannot know which.
-        const r = resolve(undefined, 'server.cfg')!;
+    it('refuses to guess when candidates for a shared file name disagree on format', () => {
+        // server.cfg belongs to the Source/GoldSource/idTech families (convar,
+        // quoted values) AND to SA-MP (unquoted). Picking either could rewrite
+        // every string wrongly, so we decline and let the raw editor handle it.
+        expect(resolve(undefined, 'server.cfg')).toBeUndefined();
+    });
+
+    it('keeps the format but drops game-specific parts when candidates agree', () => {
+        // Synthetic: two games, same file, same format, different schemas.
+        const fmt = games.find((g) => g.gameId === 'tf2')!.format;
+        const mk = (gameId: string, schema: any, note?: string) => ({
+            gameId,
+            gameName: `Game ${gameId}`,
+            fileName: 'shared.cfg',
+            dir: '/x',
+            format: fmt,
+            schema,
+            note,
+        });
+        const list = [mk('a', [{ id: 'g', title: 'G', icon: 'i', fields: [] }], 'a note'), mk('b', undefined)];
+        const r = resolveIn(list, undefined, 'shared.cfg')!;
         expect(r).toBeDefined();
-        expect(r.format.id).toBe('convar'); // format is shared, so keep it
-        expect(r.schema).toBeUndefined(); // but do not label it as Counter-Strike
-        expect(r.note).toBeUndefined(); // nor show the CS2-specific note
-        expect(r.gameName).toBe('server.cfg');
+        expect(r.format).toBe(fmt); // shared format is safe to keep
+        expect(r.schema).toBeUndefined(); // but not game a's labels
+        expect(r.note).toBeUndefined();
+        expect(r.gameName).toBe('shared.cfg');
+    });
+
+    it('still returns the single owner of a file name unchanged', () => {
+        const list = games.filter((g) => g.fileName === 'PalWorldSettings.ini');
+        expect(list).toHaveLength(1);
+        expect(resolveIn(list, undefined, 'PalWorldSettings.ini')).toBe(list[0]);
     });
 
     it('returns undefined when nothing matches, so the editor shows raw text', () => {
         expect(resolve('ark', 'no-such-file.ini')).toBeUndefined();
         expect(resolve(undefined, 'random.txt')).toBeUndefined();
+    });
+});
+
+describe('new catalog families', () => {
+    const ids = new Set(games.map((g) => g.gameId));
+
+    it('covers the GoldSource family from GameAP\'s built-in catalog', () => {
+        for (const id of ['valve', 'cstrike', 'cs15', 'czero', 'dod', 'tfc', 'op4', 'dmc', 'ricochet', 'svencoop']) {
+            expect(ids.has(id), `missing GoldSource game ${id}`).toBe(true);
+            const g = resolve(id, 'server.cfg')!;
+            expect(g, id).toBeDefined();
+            expect(g.format.id).toBe('convar');
+            expect(g.dir.endsWith('/cfg'), `${id} dir ${g.dir}`).toBe(true);
+        }
+    });
+
+    it('uses the mod folder from the catalog start command, not the game code', () => {
+        // op4 launches with `-game gearbox`.
+        expect(resolve('op4', 'server.cfg')!.dir).toBe('/gearbox/cfg');
+        // cs15 and CS 1.6 both live in /cstrike.
+        expect(resolve('cs15', 'server.cfg')!.dir).toBe('/cstrike/cfg');
+        // CS:S v34 shares /cstrike with CS:S.
+        expect(resolve('cssv34', 'server.cfg')!.dir).toBe('/cstrike/cfg');
+    });
+
+    it('does not offer Source-only convars to GoldSource games', () => {
+        const gs = resolve('valve', 'server.cfg')!;
+        const keys = new Set((gs.schema ?? []).flatMap((s) => s.fields.map((f) => f.key)));
+        for (const sourceOnly of ['sv_pure', 'sv_visiblemaxplayers', 'mp_forcecamera']) {
+            expect(keys.has(sourceOnly), `${sourceOnly} should not be offered on GoldSource`).toBe(false);
+        }
+        expect(keys.has('hostname')).toBe(true);
+    });
+
+    it('covers the set-dialect games and keeps the convar parser', () => {
+        for (const id of ['q2', 'q3', 'cod4', 'fivem']) {
+            const g = resolve(id, 'server.cfg')!;
+            expect(g, id).toBeDefined();
+            expect(g.format.id).toBe('convar');
+            expect(g.loadHint, `${id} should explain a wrong path`).toBeTruthy();
+        }
+    });
+
+    it('gives SA-MP the unquoted codec, not the Source one', () => {
+        const samp = resolve('samp', 'server.cfg')!;
+        expect(samp.format.id).toBe('samp');
+        expect(samp.format.codec.toRaw('My Server', 'text')).toBe('My Server');
+        // ... where the Source family would quote it.
+        expect(resolve('tf2', 'server.cfg')!.format.codec.toRaw('My Server', 'text')).toBe('"My Server"');
+    });
+
+    it('gives TeamSpeak 1/0 booleans rather than true/false', () => {
+        const ts3 = resolve('teamspeak3', 'ts3server.ini')!;
+        expect(ts3.format.codec.toRaw(true, 'bool')).toBe('1');
+        expect(ts3.format.codec.toRaw(false, 'bool')).toBe('0');
+        expect(ts3.format.codec.fromRaw('1', 'bool')).toBe(true);
+        expect(ts3.loadHint).toBeTruthy();
     });
 });
 

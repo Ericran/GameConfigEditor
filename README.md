@@ -11,35 +11,87 @@ shared config-format parsers.
 
 ## Supported games
 
-| Game(s) | `game_id` | File | Format |
+30 of the 41 games in GameAP's built-in catalog, plus three that are added
+manually. `game_id` is the value the plugin matches on (`server.game_id`); the
+server app id is the Steam dedicated-server app from GameAP's own catalog, handy
+when adding a game to the panel.
+
+#### Source engine  (12)
+| Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
-| Palworld | `palworld` | `PalWorldSettings.ini` | `OptionSettings=(...)` one-liner |
-| Minecraft (Java) | `minecraft` | `server.properties` | flat `key=value` |
-| ARK: Survival Evolved | `ark` | `GameUserSettings.ini`, `Game.ini` | multi-section INI (case-insensitive) |
-| Project Zomboid | `projectzomboid` | `servertest.ini` | flat `key=value` |
-| V Rising | `1604030` | `ServerHostSettings.json`, `ServerGameSettings.json` | JSON |
-| CS2 / CS:GO / CS:S | `cs2` `csgo` `cssource` | `server.cfg` | Source convars |
-| Team Fortress 2 | `tf2` | `server.cfg` | Source convars |
-| Garry's Mod | `garrysmod` | `server.cfg` | Source convars |
-| Left 4 Dead 1 / 2 | `l4d` `l4d2` | `server.cfg` | Source convars |
-| DoD:S, HL2:DM | `dods` `hl2mp` | `server.cfg` | Source convars |
-| Valheim & any game | *(any)* | - | launch variables (see Launch Settings) |
+| Counter-Strike 2 | `cs2` | `730` | `/game/csgo/cfg/server.cfg` |
+| Counter-Strike: GO | `csgo` | `740` | `/csgo/cfg/server.cfg` |
+| Counter-Strike: Source | `cssource` | `232330` | `/cstrike/cfg/server.cfg` |
+| Counter-Strike: Source v34 | `cssv34` | `232330` | `/cstrike/cfg/server.cfg` |
+| Team Fortress 2 | `tf2` | `232250` | `/tf/cfg/server.cfg` |
+| Garry's Mod | `garrysmod` | `4020` | `/garrysmod/cfg/server.cfg` |
+| Left 4 Dead 2 | `l4d2` | `222860` | `/left4dead2/cfg/server.cfg` |
+| Left 4 Dead | `l4d` | `222840` | `/left4dead/cfg/server.cfg` |
+| Day of Defeat: Source | `dods` | `232290` | `/dod/cfg/server.cfg` |
+| Half-Life 2: Deathmatch | `hl2mp` | `232370` | `/hl2mp/cfg/server.cfg` |
+| Black Mesa: Deathmatch | `bms` | `346680` | `/bms/cfg/server.cfg` |
+| Synergy | `synergy` | `17525` | `/synergy/cfg/server.cfg` |
+
+#### GoldSource engine (HLDS)  (10)
+| Game | `game_id` | Server app id | Config path |
+|---|---|---|---|
+| Half-Life 1 | `valve` | `90` | `/valve/cfg/server.cfg` |
+| Counter-Strike 1.6 | `cstrike` | `90` | `/cstrike/cfg/server.cfg` |
+| Counter-Strike 1.5 | `cs15` | - | `/cstrike/cfg/server.cfg` |
+| Counter-Strike: Condition Zero | `czero` | `90` | `/czero/cfg/server.cfg` |
+| Day of Defeat | `dod` | `90` | `/dod/cfg/server.cfg` |
+| Team Fortress Classic | `tfc` | `90` | `/tfc/cfg/server.cfg` |
+| Half-Life: Opposing Force | `op4` | `90` | `/gearbox/cfg/server.cfg` |
+| Deathmatch Classic | `dmc` | `90` | `/dmc/cfg/server.cfg` |
+| Ricochet | `ricochet` | `90` | `/ricochet/cfg/server.cfg` |
+| Sven Co-op | `svencoop` | `276060` | `/svencoop/cfg/server.cfg` |
+
+#### idTech / set-dialect  (4)
+| Game | `game_id` | Server app id | Config path |
+|---|---|---|---|
+| Quake 2 | `q2` | - | `/baseq2/server.cfg` |
+| Quake 3 | `q3` | - | `/baseq3/server.cfg` |
+| Call of Duty 4 | `cod4` | - | `/main/server.cfg` |
+| FiveM | `fivem` | - | `/server.cfg` |
+
+#### Everything else  (9)
+| Game | `game_id` | Server app id | Config path |
+|---|---|---|---|
+| Palworld | `palworld` | - | `/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` |
+| Minecraft | `minecraft` | - | `/server.properties` |
+| ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini` |
+| ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/Game.ini` |
+| Project Zomboid | `projectzomboid` | - | `/Zomboid/Server/servertest.ini` |
+| V Rising | `1604030` | - | `/save-data/Settings/ServerHostSettings.json` |
+| V Rising | `1604030` | - | `/save-data/Settings/ServerGameSettings.json` |
+| TeamSpeak 3 | `teamspeak3` | - | `/ts3server.ini` |
+| GTA: San-Andreas Multiplayer | `samp` | - | `/server.cfg` |
+
+Paths for the idTech group are best-effort: those engines resolve `server.cfg`
+relative to their base directory, and `+exec` or an `fs_homepath` override can
+move it. A miss explains itself in the error banner, and the file-manager editor
+still matches `server.cfg` wherever it actually lives.
+
+### Not covered yet
+
+| Game(s) | What's missing |
+|---|---|
+| 7 Days to Die, GTA: Multi Theft Auto | config is XML (`serverconfig.xml`, `mtaserver.conf`) - needs an XML format |
+| Arma 2, Arma 2: OA, Arma 3 | `server.cfg` uses `key = value;` syntax - needs its own format |
+| Rust, Valheim | settings live in launch arguments; use the **Launch Settings** tab |
+| HurtWorld, Just Cause 2, Reign Of Kings, The Forest | config file and format not yet established |
 
 Any game whose config matches a known format also works via the generic editor
 even without a curated schema - keys are parsed, typed, and grouped by section,
 with a raw-text fallback when a file doesn't parse.
 
-Games whose settings aren't in a file (Valheim: name/world/password/port/
-crossplay/...) are handled by the **Launch Settings** tab instead of a file editor.
-
-> **Manual-add games:** Palworld, Project Zomboid, and V Rising aren't in
-> GameAP's default catalog - they're added manually, so their `game_id` is
-> whatever your panel uses. Palworld is `palworld`; Project Zomboid is assumed
-> `projectzomboid`; V Rising is assumed `1604030` (the game's Steam app id, which
-> is how it was added here - not the dedicated-server app id `1829350`). If your
-> server uses a different code, the "Game Config" tab shows the actual code (it
-> says *"not available for ...(`yourcode`)"*) - change the one `gameId` in
-> `frontend/src/games/registry.ts` to match.
+> **Manual-add games:** Palworld, Project Zomboid and V Rising aren't in GameAP's
+> catalog - they're added by hand, so their `game_id` is whatever your panel uses.
+> Palworld is assumed `palworld`, Project Zomboid `projectzomboid`, and V Rising
+> `1604030` (the game's Steam app id, which is how it was added here - not the
+> dedicated-server app `1829350`). If your server uses a different code, the
+> "Game Config" tab prints the actual one - change the matching `gameId` in
+> `frontend/src/games/registry.ts`.
 
 ## How it works
 

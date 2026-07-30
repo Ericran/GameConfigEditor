@@ -9,18 +9,12 @@
  * value of an edited convar is rewritten, new convars are appended.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec, quoteDouble, unquoteDouble } from './shared';
+import { makeCodec, quoteDouble, unquoteDouble, type CodecOptions } from './shared';
 
-const codec = makeCodec({
-    boolTrue: '1',
-    boolFalse: '0',
-    isTruthy: (raw) => {
-        const s = unquoteDouble(raw.trim()).toLowerCase();
-        return s !== '0' && s !== '' && s !== 'false';
-    },
-    quoteText: quoteDouble,
-    unquoteText: unquoteDouble,
-});
+export interface ConvarOptions {
+    /** Codec overrides - e.g. SA-MP writes bare values with no quotes. */
+    codec?: Partial<CodecOptions>;
+}
 
 // set/seta/sets/setr/setu <name> <value> - idTech/FiveM; Source uses bare lines.
 const KEYWORDS = new Set(['set', 'seta', 'sets', 'setr', 'setu']);
@@ -106,4 +100,29 @@ function parse(text: string): ConfigDoc | null {
     };
 }
 
-export const convarFormat: Format = { id: 'convar', codec, parse };
+export function makeConvarFormat(id: string, opts: ConvarOptions = {}): Format {
+    const codec = makeCodec({
+        boolTrue: '1',
+        boolFalse: '0',
+        isTruthy: (raw) => {
+            const s = unquoteDouble(raw.trim()).toLowerCase();
+            return s !== '0' && s !== '' && s !== 'false';
+        },
+        quoteText: quoteDouble,
+        unquoteText: unquoteDouble,
+        ...opts.codec,
+    });
+    return { id, codec, parse };
+}
+
+/** Source / GoldSource / idTech server.cfg (double-quoted strings, 1/0 bools). */
+export const convarFormat = makeConvarFormat('convar');
+
+/**
+ * SA-MP `server.cfg`. Same `name value` lines, but SA-MP does not use quotes -
+ * `hostname My Server` is correct and `hostname "My Server"` would include the
+ * quotes in the browser name.
+ */
+export const sampFormat = makeConvarFormat('samp', {
+    codec: { quoteText: (v) => v, unquoteText: (raw) => raw },
+});

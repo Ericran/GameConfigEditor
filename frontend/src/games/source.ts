@@ -157,16 +157,21 @@ const CS2_NOTE =
     'gamemode_<mode>_server.cfg. Keep server-wide keys (hostname, passwords, sv_*) here and put mode-specific ' +
     'gameplay settings in the matching gamemode config.';
 
+// Mod folders match `-game <folder>` in GameAP's catalog start commands - which
+// is why CS:S v34 shares /cstrike/cfg with CS:S.
 const defs: SourceDef[] = [
     { gameId: 'cs2', gameName: 'Counter-Strike 2', dir: '/game/csgo/cfg', extras: 'csgo', note: CS2_NOTE },
     { gameId: 'csgo', gameName: 'Counter-Strike: GO', dir: '/csgo/cfg', extras: 'csgo' },
     { gameId: 'cssource', gameName: 'Counter-Strike: Source', dir: '/cstrike/cfg', extras: 'csgo' },
+    { gameId: 'cssv34', gameName: 'Counter-Strike: Source v34', dir: '/cstrike/cfg', extras: 'csgo' },
     { gameId: 'tf2', gameName: 'Team Fortress 2', dir: '/tf/cfg', extras: 'tf2' },
     { gameId: 'garrysmod', gameName: "Garry's Mod", dir: '/garrysmod/cfg', extras: 'garrysmod' },
     { gameId: 'l4d2', gameName: 'Left 4 Dead 2', dir: '/left4dead2/cfg', extras: 'l4d2' },
     { gameId: 'l4d', gameName: 'Left 4 Dead', dir: '/left4dead/cfg', extras: 'l4d2' },
     { gameId: 'dods', gameName: 'Day of Defeat: Source', dir: '/dod/cfg', extras: 'dods' },
     { gameId: 'hl2mp', gameName: 'Half-Life 2: Deathmatch', dir: '/hl2mp/cfg', extras: 'hl2mp' },
+    { gameId: 'bms', gameName: 'Black Mesa: Deathmatch', dir: '/bms/cfg', extras: null },
+    { gameId: 'synergy', gameName: 'Synergy', dir: '/synergy/cfg', extras: null },
 ];
 
 export const sourceGames: GameConfig[] = defs.map((d) => ({

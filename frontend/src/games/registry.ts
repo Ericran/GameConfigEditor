@@ -9,19 +9,35 @@
  */
 import type { Format, Schema } from '../formats/types';
 import { palworldFormat } from '../formats/palworld';
-import { keyvalueFormat } from '../formats/keyvalue';
+import { keyvalueFormat, makeKeyValueFormat } from '../formats/keyvalue';
 import { makeIniFormat } from '../formats/ini';
 import { jsonFormat } from '../formats/json';
+import { sampFormat } from '../formats/convar';
 import { palworldSchema } from './schemas/palworld';
 import { minecraftSchema } from './schemas/minecraft';
 import { arkGameUserSettingsSchema, arkGameIniSchema } from './schemas/ark';
 import { pzSchema } from './schemas/pz';
 import { vrisingHostSchema } from './schemas/vrising';
+import { ts3Schema } from './schemas/teamspeak';
+import { sampSchema } from './schemas/samp';
 import { sourceGames } from './source';
+import { goldSourceGames } from './goldsource';
+import { idTechGames } from './idtech';
 
 // ARK/Unreal INI keys are case-insensitive - match them that way so a schema
 // field and a differently-cased file key don't produce a duplicate.
 const arkIni = makeIniFormat('ark-ini', { caseInsensitive: true });
+
+// TeamSpeak's ini is flat key=value like server.properties, but its booleans are
+// 1/0 rather than true/false.
+const ts3Ini = makeKeyValueFormat('ts3-ini', { codec: { boolTrue: '1', boolFalse: '0' } });
+
+// TS3 does not create this file itself - it is only read when the server is
+// started with `inifile=ts3server.ini`, so a default install has none.
+const TS3_LOAD_HINT =
+    'TeamSpeak does not create ts3server.ini on its own, and only reads it when started with ' +
+    'inifile=ts3server.ini. Create the file next to the server binary and add that argument to the start command, ' +
+    'otherwise every setting stays at its built-in default.';
 
 const ARK_DIR = '/ShooterGame/Saved/Config/LinuxServer';
 // Shown when the file fails to load: PZ writes under $HOME/Zomboid, which is
@@ -131,7 +147,27 @@ export const games: GameConfig[] = [
         // editor renders every key grouped by its JSON section.
         loadHint: VRISING_LOAD_HINT,
     },
+    {
+        gameId: 'teamspeak3',
+        gameName: 'TeamSpeak 3',
+        fileName: 'ts3server.ini',
+        dir: '',
+        format: ts3Ini,
+        schema: ts3Schema,
+        loadHint: TS3_LOAD_HINT,
+    },
+    {
+        gameId: 'samp',
+        gameName: 'GTA: San-Andreas Multiplayer',
+        fileName: 'server.cfg',
+        dir: '',
+        // Unquoted values - see formats/convar.ts sampFormat.
+        format: sampFormat,
+        schema: sampSchema,
+    },
     ...sourceGames,
+    ...goldSourceGames,
+    ...idTechGames,
 ];
 
 /** Disk-root-relative full path to a game's config file. */
@@ -165,11 +201,27 @@ export function gamesFor(gameId: string | undefined | null): GameConfig[] {
  * confidently mislabelled one.
  */
 export function resolve(gameId: string | undefined | null, fileName: string): GameConfig | undefined {
-    const exact = games.find((g) => g.gameId === gameId && g.fileName === fileName);
+    return resolveIn(games, gameId, fileName);
+}
+
+/** `resolve` against an arbitrary list - exported so the fallback rules are testable. */
+export function resolveIn(
+    list: GameConfig[],
+    gameId: string | undefined | null,
+    fileName: string,
+): GameConfig | undefined {
+    const exact = list.find((g) => g.gameId === gameId && g.fileName === fileName);
     if (exact) return exact;
 
-    const byName = games.filter((g) => g.fileName === fileName);
+    const byName = list.filter((g) => g.fileName === fileName);
     if (byName.length <= 1) return byName[0];
+
+    // Several games claim this name. If they do not even agree on the format we
+    // must not pick one: `server.cfg` belongs to both SA-MP and the Source
+    // family, and they disagree on whether values are quoted - editing a Source
+    // config with SA-MP's codec would strip the quotes off every string. Return
+    // nothing so the editor falls back to raw text, which cannot corrupt.
+    if (new Set(byName.map((g) => g.format.id)).size > 1) return undefined;
 
     const { schema: _schema, note: _note, ...rest } = byName[0];
     return { ...rest, gameName: fileName };
