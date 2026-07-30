@@ -64,7 +64,7 @@ export function makeCodec(opts: CodecOptions): Codec {
     };
 }
 
-/** Common backslash-escaped quote helpers (Source/idTech/Unreal-style strings). */
+/** Backslash-escaped quote helpers for idTech/Unreal-style strings. */
 export const quoteDouble = (v: string) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 export const unquoteDouble = (raw: string) => {
     const m = raw.match(/^"([\s\S]*)"$/);

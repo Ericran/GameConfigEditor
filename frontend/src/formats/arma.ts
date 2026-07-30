@@ -41,10 +41,14 @@ const codec = makeCodec({
     unquoteText: unquoteArma,
 });
 
-// key = value;   with optional [] on the key. Value must not span lines, and a
-// trailing `//` comment after the semicolon is left alone.
-const ASSIGN = /^(\s*)([A-Za-z_][A-Za-z0-9_]*(?:\[\])?)(\s*=\s*)([^;]*);(.*)$/;
-const COMMENT = /^\s*(\/\/|\/\*|\*)/;
+const ASSIGN_HEADER = /^(\s*)([A-Za-z_][A-Za-z0-9_]*(?:\[\])?)(\s*=\s*)/;
+
+interface Entry {
+    line: number;
+    key: string;
+    valueStart: number;
+    valueEnd: number;
+}
 
 /** Strip comments and count structural braces while carrying block-comment state across lines. */
 function scanStructure(line: string, inBlockComment: boolean): { code: string; delta: number; inBlockComment: boolean } {
@@ -56,7 +60,10 @@ function scanStructure(line: string, inBlockComment: boolean): { code: string; d
         if (inBlockComment) {
             if (c === '*' && line[i + 1] === '/') {
                 inBlockComment = false;
+                code += '  ';
                 i++;
+            } else {
+                code += ' ';
             }
             continue;
         }
@@ -75,9 +82,13 @@ function scanStructure(line: string, inBlockComment: boolean): { code: string; d
             code += c;
             continue;
         }
-        if (c === '/' && line[i + 1] === '/') break;
+        if (c === '/' && line[i + 1] === '/') {
+            code += ' '.repeat(line.length - i);
+            break;
+        }
         if (c === '/' && line[i + 1] === '*') {
             inBlockComment = true;
+            code += '  ';
             i++;
             continue;
         }
@@ -88,13 +99,30 @@ function scanStructure(line: string, inBlockComment: boolean): { code: string; d
     return { code, delta, inBlockComment };
 }
 
+function parseAssignment(code: string, line: number): Entry | null {
+    const header = ASSIGN_HEADER.exec(code);
+    if (!header) return null;
+    const valueStart = header[0].length;
+    let quoted = false;
+    for (let i = valueStart; i < code.length; i++) {
+        if (code[i] === '"') {
+            if (quoted && code[i + 1] === '"') {
+                i++;
+                continue;
+            }
+            quoted = !quoted;
+        } else if (code[i] === ';' && !quoted) {
+            return { line, key: header[2], valueStart, valueEnd: i };
+        }
+    }
+    return null;
+}
+
 function parse(text: string): ConfigDoc | null {
     const nl = text.includes('\r\n') ? '\r\n' : '\n';
     const lines = text.split(/\r?\n/);
-    const idx: Record<string, number> = {};
+    const idx: Record<string, Entry> = {};
     const order: string[] = [];
-
-    const entry = (line: string) => (COMMENT.test(line) ? null : ASSIGN.exec(line));
 
     const reindex = () => {
         for (const k of Object.keys(idx)) delete idx[k];
@@ -104,11 +132,11 @@ function parse(text: string): ConfigDoc | null {
         lines.forEach((line, i) => {
             const scan = scanStructure(line, inBlockComment);
             inBlockComment = scan.inBlockComment;
-            const m = depth === 0 ? ASSIGN.exec(scan.code) : null;
-            if (m) {
-                const key = m[2];
+            const found = depth === 0 ? parseAssignment(scan.code, i) : null;
+            if (found) {
+                const key = found.key;
                 if (!(key in idx)) order.push(key);
-                idx[key] = i;
+                idx[key] = found;
             }
             depth = Math.max(0, depth + scan.delta);
         });
@@ -120,30 +148,28 @@ function parse(text: string): ConfigDoc | null {
         keys: () => order,
         has: (a) => a in idx,
         getRaw: (a) => {
-            const i = idx[a];
-            if (i === undefined) return undefined;
-            const m = entry(lines[i]);
-            return m ? m[4].trim() : undefined;
+            const found = idx[a];
+            if (!found) return undefined;
+            return lines[found.line].slice(found.valueStart, found.valueEnd).trim();
         },
         setRaw: (a, val) => {
-            const i = idx[a];
-            if (i === undefined) {
-                order.push(a);
-                idx[a] = lines.push(`${a} = ${val};`) - 1;
+            const found = idx[a];
+            if (!found) {
+                lines.push(`${a} = ${val};`);
+                reindex();
                 return true;
             }
-            const m = entry(lines[i]);
-            if (!m) return false;
-            // Keep indentation, the key's spelling, the spacing around `=` and
-            // anything trailing the semicolon; replace only the value.
-            lines[i] = `${m[1]}${m[2]}${m[3]}${val};${m[5]}`;
+            const line = lines[found.line];
+            lines[found.line] = line.slice(0, found.valueStart) + val + line.slice(found.valueEnd);
+            reindex();
             return true;
         },
         remove: (a) => {
-            const i = idx[a];
-            if (i === undefined) return;
-            lines.splice(i, 1);
+            const found = idx[a];
+            if (!found) return false;
+            lines.splice(found.line, 1);
             reindex();
+            return true;
         },
         sectionOf: () => '',
         labelOf: (a) => a,

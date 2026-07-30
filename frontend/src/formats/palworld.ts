@@ -44,7 +44,6 @@ function splitTopLevel(s: string): string[] {
         }
         cur += c;
         escaped = c === '\\' && !escaped;
-        if (c !== '\\') escaped = false;
     }
     if (cur.length) out.push(cur);
     return out;
@@ -105,10 +104,24 @@ function parse(text: string): ConfigDoc | null {
             return true;
         },
         remove: (a) => {
+            let removed = false;
             for (let i = tokens.length - 1; i >= 0; i--) {
-                if (tokens[i].key === a) tokens.splice(i, 1);
+                if (tokens[i].key === a) {
+                    tokens.splice(i, 1);
+                    removed = true;
+                }
             }
             reindex();
+            return removed;
+        },
+        removeMany: (addresses) => {
+            const wanted = new Set(addresses);
+            if ([...wanted].some((address) => !(address in idx))) return false;
+            for (let i = tokens.length - 1; i >= 0; i--) {
+                if (tokens[i].key && wanted.has(tokens[i].key!)) tokens.splice(i, 1);
+            }
+            reindex();
+            return true;
         },
         sectionOf: () => '',
         labelOf: (a) => a,

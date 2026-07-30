@@ -113,6 +113,24 @@ describe('arma', () => {
         expect(doc.serialize()).toBe(text);
     });
 
+    it('reads and rewrites an assignment following an inline block comment', () => {
+        const text = '/* explanation */ hostname = "old"; // keep\nmaxPlayers = 10;\n';
+        const doc = armaFormat.parse(text)!;
+        expect(doc.keys()).toEqual(['hostname', 'maxPlayers']);
+        expect(doc.getRaw('hostname')).toBe('"old"');
+        expect(doc.setRaw('hostname', '"new"')).toBe(true);
+        expect(doc.serialize()).toBe('/* explanation */ hostname = "new"; // keep\nmaxPlayers = 10;\n');
+    });
+
+    it('treats semicolons inside quoted values as data', () => {
+        const text = 'hostname = "a;b"; // keep\nmaxPlayers = 10;\n';
+        const doc = armaFormat.parse(text)!;
+        expect(doc.getRaw('hostname')).toBe('"a;b"');
+        expect(doc.setRaw('hostname', '"x;y"')).toBe(true);
+        expect(doc.serialize()).toBe('hostname = "x;y"; // keep\nmaxPlayers = 10;\n');
+        expect(armaFormat.parse(doc.serialize())!.getRaw('hostname')).toBe('"x;y"');
+    });
+
     it('treats an array as raw text rather than trying to model a list', () => {
         const doc = armaFormat.parse(ARMA)!;
         doc.setRaw('admins[]', '{"765611980000000099"}');

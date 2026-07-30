@@ -42,7 +42,11 @@ function tab() {
 }
 
 describe('GameConfigTab request ordering', () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => {
+        vi.mocked(axios.get).mockReset();
+        vi.mocked(axios.post).mockReset();
+        vi.restoreAllMocks();
+    });
 
     it('ignores an older load that finishes after the newly selected file', async () => {
         const first = deferred<{ data: string }>();
@@ -92,7 +96,7 @@ describe('GameConfigTab request ordering', () => {
         editor.vm.$emit('save', 'newer-draft-content');
         await flushPromises();
 
-        expect(axios.get).toHaveBeenCalledTimes(3); // initial load + one conflict check per save attempt
+        expect(axios.get).toHaveBeenCalledTimes(4); // initial load + two preflights + post-save verification
         expect(axios.post).toHaveBeenCalledTimes(2);
         const retriedForm = vi.mocked(axios.post).mock.calls[1][1] as FormData;
         expect(await (retriedForm.get('file') as File).text()).toBe('newer-draft-content');
@@ -112,6 +116,7 @@ describe('GameConfigTab request ordering', () => {
 
         expect(axios.post).not.toHaveBeenCalled();
         expect(wrapper.text()).toContain('changed since it was loaded');
+        expect(wrapper.text()).not.toContain('merge');
         const reload = wrapper.findAll('button').find((button) => button.text() === 'Reload');
         expect(reload).toBeTruthy();
         await reload!.trigger('click');
@@ -120,5 +125,43 @@ describe('GameConfigTab request ordering', () => {
         expect(confirm).toHaveBeenCalledOnce();
         expect(axios.get).toHaveBeenCalledTimes(3);
         expect(wrapper.get('[data-test="editor"]').text()).toBe('externally-changed-content');
+    });
+
+    it('uses the server copy returned after a save as the next conflict baseline', async () => {
+        vi.mocked(axios.get)
+            .mockResolvedValueOnce({ data: 'original' })
+            .mockResolvedValueOnce({ data: 'original' })
+            .mockResolvedValueOnce({ data: 'first-normalized\n' })
+            .mockResolvedValueOnce({ data: 'first-normalized\n' })
+            .mockResolvedValueOnce({ data: 'second-normalized\n' });
+        vi.mocked(axios.post).mockResolvedValue({});
+        const wrapper = tab();
+        await flushPromises();
+
+        wrapper.getComponent({ name: 'ConfigEditor' }).vm.$emit('save', 'first');
+        await flushPromises();
+        expect(wrapper.getComponent({ name: 'ConfigEditor' }).props('content')).toBe('first-normalized\n');
+
+        wrapper.getComponent({ name: 'ConfigEditor' }).vm.$emit('save', 'second');
+        await flushPromises();
+
+        expect(axios.post).toHaveBeenCalledTimes(2);
+        expect(wrapper.getComponent({ name: 'ConfigEditor' }).props('content')).toBe('second-normalized\n');
+        expect(wrapper.text()).not.toContain('changed since it was loaded');
+    });
+
+    it('reports a failed pre-save read as verification failure without uploading', async () => {
+        vi.mocked(axios.get)
+            .mockResolvedValueOnce({ data: 'original' })
+            .mockRejectedValueOnce(new Error('offline'));
+        const wrapper = tab();
+        await flushPromises();
+
+        wrapper.getComponent({ name: 'ConfigEditor' }).vm.$emit('save', 'draft');
+        await flushPromises();
+
+        expect(axios.post).not.toHaveBeenCalled();
+        expect(wrapper.text()).toContain("Couldn't verify");
+        expect(wrapper.text()).toContain('Nothing was uploaded');
     });
 });

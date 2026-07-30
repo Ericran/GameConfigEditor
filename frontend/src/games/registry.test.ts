@@ -90,11 +90,11 @@ describe('new catalog families', () => {
         expect(keys.has('hostname')).toBe(true);
     });
 
-    it('covers the set-dialect games and keeps the convar parser', () => {
+    it('covers the set-dialect games with the idTech convar dialect', () => {
         for (const id of ['q2', 'q3', 'cod4', 'fivem']) {
             const g = resolve(id, 'server.cfg')!;
             expect(g, id).toBeDefined();
-            expect(g.format.id).toBe('convar');
+            expect(g.format.id).toBe('idtech-convar');
             expect(g.loadHint, `${id} should explain a wrong path`).toBeTruthy();
         }
     });

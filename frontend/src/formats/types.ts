@@ -58,8 +58,10 @@ export interface ConfigDoc {
     getRaw(address: string): string | undefined;
     /** Set (creating the entry if absent). Returns false when the format cannot safely apply the write. */
     setRaw(address: string, rawValue: string): boolean;
-    /** Remove an entry entirely (used by guardrails that clear a value). */
-    remove(address: string): void;
+    /** Remove an entry entirely. Returns false when no safe removal was applied. */
+    remove(address: string): boolean;
+    /** Atomically remove every requested entry, or leave the document unchanged. */
+    removeMany?(addresses: string[]): boolean;
     /** Section label for grouping unknown keys; '' when the format is flat. */
     sectionOf(address: string): string;
     /** Human display key (last path segment) for an address. */

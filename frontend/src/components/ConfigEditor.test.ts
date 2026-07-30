@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ConfigEditor from './ConfigEditor.vue';
 import { keyvalueFormat } from '../formats/keyvalue';
 import { palworldFormat } from '../formats/palworld';
+import type { ConfigDoc } from '../formats/types';
 import type { GameConfig } from '../games/registry';
+
+vi.mock('@gameap/plugin-sdk', () => ({ useServer: () => ({ value: null }) }));
 
 const game: GameConfig = {
     gameId: 'test',
@@ -101,5 +104,55 @@ describe('ConfigEditor save state', () => {
         const saved = wrapper.emitted('save')![0][0] as string;
         expect(saved).toBe('OptionSettings=(ServerName="Test")');
         expect(saved).not.toContain('PublicPort=');
+    });
+
+    it('reports a relay clear that the format cannot safely apply', async () => {
+        let parseCount = 0;
+        let liveRemoveCalls = 0;
+        const failingGame: GameConfig = {
+            gameId: 'test',
+            gameName: 'Test',
+            fileName: 'test.cfg',
+            dir: '',
+            relayGuard: { ipKey: 'PublicIP', portKey: 'PublicPort' },
+            format: {
+                id: 'failing-remove',
+                codec: keyvalueFormat.codec,
+                parse: () => {
+                    const live = parseCount++ === 0;
+                    return {
+                        keys: () => ['PublicIP', 'PublicPort'],
+                        has: () => true,
+                        getRaw: () => '"203.0.113.2"',
+                        setRaw: () => true,
+                        remove: (address) => {
+                            if (live) liveRemoveCalls++;
+                            return live ? address === 'PublicIP' : true;
+                        },
+                        removeMany: () => false,
+                        sectionOf: () => '',
+                        labelOf: (address) => address,
+                        serialize: () => 'PublicIP="203.0.113.2"\nPublicPort=8211\n',
+                    } as ConfigDoc & { removeMany: (addresses: string[]) => boolean };
+                },
+            },
+        };
+        const wrapper = mount(ConfigEditor, {
+            props: {
+                content: 'PublicIP="203.0.113.2"\n',
+                filePath: '/test.cfg',
+                fileName: 'test.cfg',
+                extension: 'cfg',
+                pluginId: 'test-plugin',
+                game: failingGame,
+                embedded: true,
+            },
+        });
+
+        await wrapper.findAll('button').find((button) => button.text().includes('Clear public IP'))!.trigger('click');
+
+        expect(wrapper.text()).toContain('could not be removed safely');
+        expect(liveRemoveCalls).toBe(0);
+        expect(wrapper.emitted('dirty-change')).toBeUndefined();
     });
 });

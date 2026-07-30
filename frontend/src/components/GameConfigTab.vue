@@ -75,30 +75,49 @@ async function onSave(newContent: string) {
     failureKind.value = 'save';
     saving.value = true;
     reset();
+
+    const request = {
+        params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
+        responseType: 'text' as const,
+        transformResponse: [(x: unknown) => x],
+    };
+
+    let currentText: string;
     try {
-        // The file-manager API has no ETag/If-Match contract. Re-read immediately
-        // before uploading so another panel user or the game process cannot be
-        // silently overwritten by a stale editor.
-        const current = await axios.get(`${base}/stream-file`, {
-            params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
-            responseType: 'text',
-            transformResponse: [(x: unknown) => x],
-        });
-        const currentText = typeof current.data === 'string' ? current.data : String(current.data ?? '');
-        if (currentText !== content.value) {
-            failureKind.value = 'conflict';
-            error.value = 'This file changed since it was loaded. Reload it and merge your changes before saving.';
-            return;
-        }
+        const current = await axios.get(`${base}/stream-file`, request);
+        currentText = typeof current.data === 'string' ? current.data : String(current.data ?? '');
+    } catch (e: any) {
+        error.value = `Couldn't verify ${cfg.fileName} before saving: ${errMsg(e, 'request failed')}. Nothing was uploaded; use Save to retry.`;
+        saving.value = false;
+        return;
+    }
+
+    if (currentText !== content.value) {
+        failureKind.value = 'conflict';
+        error.value = 'This file changed since it was loaded. Reload to discard your draft and view the current server copy.';
+        saving.value = false;
+        return;
+    }
+
+    try {
         const fd = new FormData();
         fd.append('disk', cfg.disk ?? 'server');
         fd.append('path', configDir(cfg));
         fd.append('file', new File([newContent], cfg.fileName, { type: 'text/plain' }));
         await axios.post(`${base}/update-file`, fd);
-        content.value = newContent;
+
+        let acknowledgedContent = newContent;
+        let verified = true;
+        try {
+            const saved = await axios.get(`${base}/stream-file`, request);
+            acknowledgedContent = typeof saved.data === 'string' ? saved.data : String(saved.data ?? '');
+        } catch {
+            verified = false;
+        }
+        content.value = acknowledgedContent;
         editorDirty.value = false;
         reloadKey.value++;
-        notice.value = 'Saved.';
+        notice.value = verified ? 'Saved.' : 'Saved, but the server copy could not be re-read for verification.';
     } catch (e: any) {
         failureKind.value = 'save';
         error.value = `Couldn't save ${cfg.fileName}: ${errMsg(e, 'request failed')}. Use Save to retry with your latest draft.`;

@@ -115,9 +115,10 @@ export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
             },
             remove: (a) => {
                 const i = idx[norm(a)];
-                if (i === undefined) return;
+                if (i === undefined) return false;
                 lines.splice(i, 1);
                 reindex();
+                return true;
             },
             sectionOf: (a) => addrSection(a),
             labelOf: (a) => addrKey(a),

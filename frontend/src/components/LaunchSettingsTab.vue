@@ -50,6 +50,7 @@ const { loading, saving, error, notice, reset } = useAsyncPanel();
 const unsupported = ref(false);
 const defs = ref<SettingDef[]>([]);
 const values = reactive<Record<string, ConfigValue>>({});
+const wireValues = reactive<Record<string, unknown>>({});
 const dirty = ref(false);
 const revision = ref(0);
 let loadGeneration = 0;
@@ -71,10 +72,37 @@ function normalizedValue(def: SettingDef): ConfigValue {
         return ['1', 'true', 'yes', 'on'].includes(String(def.value ?? '').trim().toLowerCase());
     }
     if (kind === 'number') {
+        if (String(def.value ?? '').trim() === '') return '';
         const n = Number(def.value);
         return Number.isFinite(n) ? n : String(def.value ?? '');
     }
     return String(def.value ?? '');
+}
+
+function toWireValue(def: SettingDef, value: ConfigValue): unknown {
+    const original = def.value;
+    if (typeof original === 'string') {
+        if (kindOf(def) === 'bool') {
+            const truthy = Boolean(value);
+            switch (original.trim().toLowerCase()) {
+                case '1':
+                case '0':
+                    return truthy ? '1' : '0';
+                case 'yes':
+                case 'no':
+                    return truthy ? 'yes' : 'no';
+                case 'on':
+                case 'off':
+                    return truthy ? 'on' : 'off';
+                default:
+                    return truthy ? 'true' : 'false';
+            }
+        }
+        return String(value ?? '');
+    }
+    if (typeof original === 'boolean') return Boolean(value);
+    if (typeof original === 'number' && value !== '') return Number(value);
+    return value;
 }
 
 async function load() {
@@ -86,13 +114,17 @@ async function load() {
     // Never leave a stale form editable beneath a refresh error.
     defs.value = [];
     for (const name of Object.keys(values)) delete values[name];
+    for (const name of Object.keys(wireValues)) delete wireValues[name];
     dirty.value = false;
     try {
         const resp = await axios.get(`${base}/settings`);
         if (generation !== loadGeneration) return;
         const list: SettingDef[] = Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? []);
         defs.value = list;
-        for (const d of list) values[d.name] = normalizedValue(d);
+        for (const d of list) {
+            values[d.name] = normalizedValue(d);
+            wireValues[d.name] = d.value;
+        }
         revision.value++;
     } catch (e: any) {
         if (generation !== loadGeneration) return;
@@ -104,7 +136,7 @@ async function load() {
     }
 }
 
-async function performSave(payload: Array<{ name: string; value: ConfigValue }>, savedRevision: number) {
+async function performSave(payload: Array<{ name: string; value: unknown }>, savedRevision: number) {
     if (saving.value) return;
     saving.value = true;
     reset();
@@ -122,7 +154,7 @@ async function performSave(payload: Array<{ name: string; value: ConfigValue }>,
 
 function save() {
     if (saving.value) return;
-    const payload = defs.value.map((d) => ({ name: d.name, value: values[d.name] }));
+    const payload = defs.value.map((d) => ({ name: d.name, value: wireValues[d.name] }));
     void performSave(payload, revision.value);
 }
 
@@ -133,6 +165,8 @@ function retry() {
 
 function update(name: string, v: ConfigValue) {
     values[name] = v;
+    const def = defs.value.find((candidate) => candidate.name === name);
+    if (def) wireValues[name] = toWireValue(def, v);
     revision.value++;
     dirty.value = true;
 }

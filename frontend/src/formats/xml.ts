@@ -154,9 +154,10 @@ export function makeXmlFormat(id: string, opts: XmlOptions): Format {
             },
             remove: (a) => {
                 const i = idx[a];
-                if (i === undefined) return;
+                if (i === undefined) return false;
                 lines.splice(i, 1);
                 reindex();
+                return true;
             },
             sectionOf: () => '',
             labelOf: (a) => a,

@@ -4,7 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-SDK_TAG="${SDK_TAG:-v4.3.0}"                 # match the installed panel version
+SDK_REF="${SDK_REF:-${SDK_TAG:-v4.3.0}}"     # tag or branch matching the installed panel; SDK_TAG remains compatible
+SDK_URL="${SDK_URL:-https://github.com/gameap/gameap.git}"
 NODE_IMAGE="${NODE_IMAGE:-node:22-bookworm}"
 TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (GameAP v4.3.0 SDK requires it)
 OUT="${OUT:-GameAP-GameConfigEditor.wasm}"
@@ -20,17 +21,25 @@ if [ "$GO_VER" != "$PKG_VER" ] || [ "$GO_VER" != "$TS_VER" ]; then
 fi
 echo ">> building version ${GO_VER}"
 
-echo ">> [1/3] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_TAG})"
+echo ">> [1/3] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_REF})"
 if [ ! -d .sdk/gameap/.git ]; then
   mkdir -p .sdk
-  git clone --depth 1 --branch "${SDK_TAG}" https://github.com/gameap/gameap.git .sdk/gameap
+  git clone --depth 1 --branch "${SDK_REF}" "${SDK_URL}" .sdk/gameap
 else
-  CURRENT_SDK_TAG=$(git -C .sdk/gameap describe --tags --exact-match HEAD 2>/dev/null || true)
-  if [ "$CURRENT_SDK_TAG" != "$SDK_TAG" ]; then
-    echo ">> SDK checkout is ${CURRENT_SDK_TAG:-untagged}; switching to ${SDK_TAG}"
-    git -C .sdk/gameap reset --hard
-    git -C .sdk/gameap fetch --depth 1 origin "refs/tags/${SDK_TAG}:refs/tags/${SDK_TAG}"
-    git -C .sdk/gameap checkout --detach "${SDK_TAG}"
+  # Reset cache-only SDK edits, update an overridden origin, then fetch the
+  # requested ref by name so tags and moving branches use the same path.
+  git -C .sdk/gameap reset --hard
+  CURRENT_SDK_URL="$(git -C .sdk/gameap remote get-url origin)"
+  if [ "$CURRENT_SDK_URL" != "$SDK_URL" ]; then
+    echo ">> SDK origin changed; updating to ${SDK_URL}"
+    git -C .sdk/gameap remote set-url origin "$SDK_URL"
+  fi
+  git -C .sdk/gameap fetch --force --tags origin "$SDK_REF"
+  CURRENT_SDK_COMMIT=$(git -C .sdk/gameap rev-parse HEAD)
+  DESIRED_SDK_COMMIT=$(git -C .sdk/gameap rev-parse FETCH_HEAD)
+  if [ "$CURRENT_SDK_COMMIT" != "$DESIRED_SDK_COMMIT" ]; then
+    echo ">> SDK checkout does not match ${SDK_REF}; switching"
+    git -C .sdk/gameap checkout --detach FETCH_HEAD
   fi
 fi
 
@@ -64,8 +73,9 @@ docker run --rm -u "$U" \
   -e GOCACHE=/src/.cache/go-build \
   -e GOMODCACHE=/src/.cache/gomod \
   -e GOPATH=/src/.cache/gopath \
+  -e OUT="$OUT" \
   -v "$PWD:/src" -w /src "${TINYGO_IMAGE}" \
-  sh -c "go mod download && tinygo build -o '${OUT}' -target=wasip1 -buildmode=c-shared -scheduler=none ."
+  sh -c 'cp go.mod .build.mod; trap "rm -f .build.mod .build.sum" EXIT; GOFLAGS=-modfile=.build.mod go mod tidy && GOFLAGS=-modfile=.build.mod tinygo build -o "$OUT" -target=wasip1 -buildmode=c-shared -scheduler=none .'
 
 echo ">> Done: ${OUT}"
 echo ">> Install it via the GameAP panel: Administration -> Plugins -> Upload -> ${OUT}"

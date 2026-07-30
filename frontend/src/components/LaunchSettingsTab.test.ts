@@ -7,6 +7,7 @@ import LaunchSettingsTab from './LaunchSettingsTab.vue';
 vi.mock('axios', () => ({
     default: { get: vi.fn(), put: vi.fn() },
 }));
+vi.mock('@gameap/plugin-sdk', () => ({ useServerAbilities: () => ({ value: ['game-server-settings'] }) }));
 
 function deferred<T>() {
     let resolve!: (value: T) => void;
@@ -23,6 +24,7 @@ function mountTab() {
         props: {
             serverId: 42,
             server: { id: 42, game_id: 'valheim' },
+            pluginId: 'test-plugin',
         } as any,
         global: {
             stubs: {
@@ -44,14 +46,53 @@ describe('LaunchSettingsTab', () => {
         vi.mocked(axios.put).mockReset();
     });
 
-    it('normalizes string boolean values before binding checkboxes', async () => {
+    it('normalizes values for inputs without changing untouched API wire formats', async () => {
         vi.mocked(axios.get).mockResolvedValue({
-            data: [{ name: 'public', value: '1', type: 'boolean' }],
+            data: [
+                { name: 'public', value: '1', type: 'boolean' },
+                { name: 'port', value: '2456', type: 'integer' },
+                { name: 'query_port', value: '', type: 'integer' },
+                { name: 'world', value: 'before', type: 'string' },
+            ],
         });
+        vi.mocked(axios.put).mockResolvedValue({});
         const wrapper = mountTab();
         await flushPromises();
 
-        expect(wrapper.get('[data-test="field"]').text()).toBe('true:bool');
+        expect(wrapper.findAll('[data-test="field"]').map((field) => field.text())).toEqual([
+            'true:bool',
+            '2456:number',
+            ':number',
+            'before:text',
+        ]);
+        const fields = wrapper.findAllComponents({ name: 'FieldInput' });
+        fields[3].vm.$emit('update:modelValue', 'after');
+        await wrapper.vm.$nextTick();
+        await wrapper.get('button').trigger('click');
+        await flushPromises();
+
+        expect(axios.put).toHaveBeenCalledWith('/api/servers/42/settings', [
+            { name: 'public', value: '1' },
+            { name: 'port', value: '2456' },
+            { name: 'query_port', value: '' },
+            { name: 'world', value: 'after' },
+        ]);
+    });
+
+    it('encodes an edited boolean using the API representation it loaded', async () => {
+        vi.mocked(axios.get).mockResolvedValue({
+            data: [{ name: 'public', value: '1', type: 'boolean' }],
+        });
+        vi.mocked(axios.put).mockResolvedValue({});
+        const wrapper = mountTab();
+        await flushPromises();
+
+        wrapper.getComponent({ name: 'FieldInput' }).vm.$emit('update:modelValue', false);
+        await wrapper.vm.$nextTick();
+        await wrapper.get('button').trigger('click');
+        await flushPromises();
+
+        expect(axios.put).toHaveBeenCalledWith('/api/servers/42/settings', [{ name: 'public', value: '0' }]);
     });
 
     it('does not mark edits made while a save is in flight as saved', async () => {

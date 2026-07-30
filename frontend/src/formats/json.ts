@@ -138,7 +138,9 @@ export function makeJsonFormat(id: string): Format {
             },
             remove: (a) => {
                 const loc = locate(a);
-                if (loc && loc[1] in loc[0]) delete loc[0][loc[1]];
+                if (!loc || !(loc[1] in loc[0])) return false;
+                delete loc[0][loc[1]];
+                return true;
             },
             sectionOf: (a) => {
                 const parts = splitAddress(a);

@@ -60,6 +60,7 @@ const form = doc && codec ? useConfigForm(doc, game?.schema ?? [], codec) : null
 const groups = computed(() => form?.groups.value ?? []);
 const models = form?.models ?? {};
 const writeError = computed(() => form?.writeError.value ?? null);
+const relayError = ref<string | null>(null);
 
 // The raw-text fallback tracks its own edits; otherwise the form owns `dirty`.
 const rawDirty = ref(false);
@@ -74,20 +75,25 @@ const relayIpSet = computed(() => {
 });
 function clearRelay() {
     if (props.saving || !game?.relayGuard || !doc || !form) return;
+    relayError.value = null;
     const { ipKey, portKey } = game.relayGuard;
     // Removing the keys lets the game apply valid defaults. Writing an empty
     // numeric port (PublicPort=) can make Palworld reject/reset the config.
-    if (doc.has(ipKey)) doc.remove(ipKey);
-    if (portKey && doc.has(portKey)) doc.remove(portKey);
+    const keys = [ipKey, ...(portKey ? [portKey] : [])].filter((key) => doc.has(key));
+    if (!doc.removeMany || !doc.removeMany(keys)) {
+        relayError.value = 'The public relay setting could not be removed safely; the document was not marked ready to save.';
+        return;
+    }
     form.touch();
 }
 
 // ---- actions ----
 function onSave() {
     if (props.saving) return;
-    // The parent owns persistence. Keep this document dirty until a successful
-    // save causes the parent/host to remount it with the acknowledged content;
-    // otherwise a failed request would disable Save and strand the draft.
+    // The parent owns persistence. Keep this document dirty until acknowledgement:
+    // GameConfigTab remounts with the re-read server copy, while GameAP's
+    // PluginEditorModal closes this standalone editor only after upload success.
+    // On failure the host leaves it mounted, so clearing here would strand the draft.
     emit('save', doc ? doc.serialize() : rawText.value);
 }
 function onClose() {
@@ -141,6 +147,9 @@ const note = game?.note;
             <!-- structured write failure -->
             <Banner v-if="writeError" tone="warning" icon="fa-solid fa-triangle-exclamation">
                 {{ writeError }}
+            </Banner>
+            <Banner v-if="relayError" tone="warning" icon="fa-solid fa-triangle-exclamation">
+                {{ relayError }}
             </Banner>
 
             <!-- relay guardrail -->

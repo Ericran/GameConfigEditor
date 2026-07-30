@@ -78,11 +78,12 @@ export function makeKeyValueFormat(id: string, opts: KeyValueOptions = {}): Form
             },
             remove: (a) => {
                 const i = idx[a];
-                if (i === undefined) return;
+                if (i === undefined) return false;
                 lines.splice(i, 1);
                 const oi = order.indexOf(a);
                 if (oi >= 0) order.splice(oi, 1);
                 reindex();
+                return true;
             },
             sectionOf: () => '',
             labelOf: (a) => a,

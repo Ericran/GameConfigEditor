@@ -14,34 +14,48 @@ import { makeCodec, quoteDouble, unquoteDouble, type CodecOptions } from './shar
 export interface ConvarOptions {
     /** Codec overrides - e.g. SA-MP writes bare values with no quotes. */
     codec?: Partial<CodecOptions>;
+    /** idTech-style dialects interpret backslash-escaped quotes and slashes. */
+    backslashEscapes?: boolean;
+    /** Bare-value dialects may accept literal quote characters without Source validation. */
+    allowEmbeddedQuotes?: boolean;
 }
 
 // set/seta/sets/setr/setu <name> <value> - idTech/FiveM; Source uses bare lines.
 const KEYWORDS = new Set(['set', 'seta', 'sets', 'setr', 'setu']);
+
+const quoteSource = (value: string) => `"${value}"`;
+const unquoteSource = (raw: string) => {
+    const match = raw.match(/^"([\s\S]*)"$/);
+    return match ? match[1] : raw;
+};
+
+function isSafeSourceValue(raw: string): boolean {
+    if (!raw.includes('"')) return true;
+    return raw.startsWith('"') && raw.endsWith('"') && !raw.slice(1, -1).includes('"');
+}
 
 type Line =
     | { kind: 'raw'; text: string }
     | { kind: 'kv'; indent: string; keyword: string; name: string; separator: string; value: string; suffix: string };
 
 /** Split a trailing // comment outside a quoted value, preserving its padding. */
-function splitInlineComment(value: string): [string, string] {
+function splitInlineComment(value: string, backslashEscapes: boolean): [string, string] {
     let quoted = false;
     let escaped = false;
     for (let i = 0; i < value.length - 1; i++) {
         const c = value[i];
-        if (c === '"' && !escaped) quoted = !quoted;
+        if (c === '"' && (!backslashEscapes || !escaped)) quoted = !quoted;
         if (!quoted && c === '/' && value[i + 1] === '/' && (i === 0 || /\s/.test(value[i - 1]))) {
             let start = i;
             while (start > 0 && /[ \t]/.test(value[start - 1])) start--;
             return [value.slice(0, start), value.slice(start)];
         }
-        escaped = c === '\\' && !escaped;
-        if (c !== '\\') escaped = false;
+        escaped = backslashEscapes && c === '\\' && !escaped;
     }
     return [value, ''];
 }
 
-function parseLine(text: string): Extract<Line, { kind: 'kv' }> | null {
+function parseLine(text: string, backslashEscapes: boolean): Extract<Line, { kind: 'kv' }> | null {
     const indent = (text.match(/^(\s*)/) as RegExpMatchArray)[1];
     const rest = text.slice(indent.length);
     if (rest === '' || rest.startsWith('//')) return null;
@@ -61,7 +75,7 @@ function parseLine(text: string): Extract<Line, { kind: 'kv' }> | null {
             value = m2[3];
         }
     }
-    const [cleanValue, suffix] = splitInlineComment(value);
+    const [cleanValue, suffix] = splitInlineComment(value, backslashEscapes);
     return { kind: 'kv', indent, keyword, name, separator, value: cleanValue, suffix };
 }
 
@@ -73,10 +87,10 @@ function emit(l: Line): string {
         : `${l.indent}${kw}${l.name}${l.separator || ' '}${l.value}${l.suffix}`;
 }
 
-function parse(text: string): ConfigDoc | null {
+function parse(text: string, safeValue: (raw: string) => boolean, backslashEscapes: boolean): ConfigDoc | null {
     const nl = text.includes('\r\n') ? '\r\n' : '\n';
     const lines: Line[] = text.split(/\r?\n/).map((t) => {
-        const kv = parseLine(t);
+        const kv = parseLine(t, backslashEscapes);
         return kv ?? { kind: 'raw', text: t };
     });
     const idx: Record<string, number> = {};
@@ -102,6 +116,7 @@ function parse(text: string): ConfigDoc | null {
             return i === undefined ? undefined : (lines[i] as Extract<Line, { kind: 'kv' }>).value;
         },
         setRaw: (a, val) => {
+            if (!safeValue(val)) return false;
             const i = idx[a];
             if (i !== undefined) {
                 (lines[i] as Extract<Line, { kind: 'kv' }>).value = val;
@@ -114,9 +129,10 @@ function parse(text: string): ConfigDoc | null {
         },
         remove: (a) => {
             const i = idx[a];
-            if (i === undefined) return;
+            if (i === undefined) return false;
             lines.splice(i, 1);
             reindex();
+            return true;
         },
         sectionOf: () => '',
         labelOf: (a) => a,
@@ -125,22 +141,36 @@ function parse(text: string): ConfigDoc | null {
 }
 
 export function makeConvarFormat(id: string, opts: ConvarOptions = {}): Format {
+    const quoteText = opts.backslashEscapes ? quoteDouble : quoteSource;
+    const unquoteText = opts.backslashEscapes ? unquoteDouble : unquoteSource;
     const codec = makeCodec({
         boolTrue: '1',
         boolFalse: '0',
         isTruthy: (raw) => {
-            const s = unquoteDouble(raw.trim()).toLowerCase();
+            const s = unquoteText(raw.trim()).toLowerCase();
             return s !== '0' && s !== '' && s !== 'false';
         },
-        quoteText: quoteDouble,
-        unquoteText: unquoteDouble,
+        quoteText,
+        unquoteText,
         ...opts.codec,
     });
-    return { id, codec, parse };
+    return {
+        id,
+        codec,
+        parse: (text) =>
+            parse(
+                text,
+                opts.backslashEscapes || opts.allowEmbeddedQuotes ? () => true : isSafeSourceValue,
+                opts.backslashEscapes ?? false,
+            ),
+    };
 }
 
-/** Source / GoldSource / idTech server.cfg (double-quoted strings, 1/0 bools). */
+/** Source / GoldSource server.cfg (literal backslashes, 1/0 booleans). */
 export const convarFormat = makeConvarFormat('convar');
+
+/** idTech/FiveM set-dialect config with C-style backslash escaping. */
+export const idTechConvarFormat = makeConvarFormat('idtech-convar', { backslashEscapes: true });
 
 /**
  * SA-MP `server.cfg`. Same `name value` lines, but SA-MP does not use quotes -
@@ -148,5 +178,6 @@ export const convarFormat = makeConvarFormat('convar');
  * quotes in the browser name.
  */
 export const sampFormat = makeConvarFormat('samp', {
+    allowEmbeddedQuotes: true,
     codec: { quoteText: (v) => v, unquoteText: (raw) => raw },
 });

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { palworldFormat } from './palworld';
 import { keyvalueFormat, makeKeyValueFormat } from './keyvalue';
 import { makeIniFormat, iniFormat } from './ini';
-import { convarFormat } from './convar';
+import { convarFormat, idTechConvarFormat, sampFormat } from './convar';
 import { jsonFormat } from './json';
 import { addr } from './shared';
 import type { Format } from './types';
@@ -232,6 +232,13 @@ describe('palworld', () => {
         expect(out).toContain('BaseCampWorkerMaxNum=15');
     });
 
+    it('leaves the document unchanged when an atomic multi-remove cannot remove every key', () => {
+        const doc = palworldFormat.parse(PALWORLD)!;
+        const before = doc.serialize();
+        expect(doc.removeMany?.(['PublicIP', 'MissingRelayPort'])).toBe(false);
+        expect(doc.serialize()).toBe(before);
+    });
+
     it('quotes text and unquotes it symmetrically', () => {
         const { codec } = palworldFormat;
         expect(codec.toRaw('hello', 'text')).toBe('"hello"');
@@ -439,6 +446,45 @@ describe('convar', () => {
         const doc = convarFormat.parse(CONVAR)!;
         expect(doc.getRaw('hostname')).toBe('"My TF2 Server"');
         expect(convarFormat.codec.fromRaw(doc.getRaw('hostname'), 'text')).toBe('My TF2 Server');
+    });
+
+    it('does not double literal backslashes in Source convar strings', () => {
+        const doc = convarFormat.parse('hostname "C:\\games\\server"\n')!;
+        expect(convarFormat.codec.fromRaw(doc.getRaw('hostname'), 'text')).toBe('C:\\games\\server');
+        const raw = convarFormat.codec.toRaw('D:\\servers\\cs2', 'text');
+        expect(raw).toBe('"D:\\servers\\cs2"');
+        expect(doc.setRaw('hostname', raw)).toBe(true);
+        expect(doc.serialize()).toBe('hostname "D:\\servers\\cs2"\n');
+    });
+
+    it('uses Source quote semantics when locating an inline comment', () => {
+        const doc = convarFormat.parse('hostname "old\\" // keep this comment\n')!;
+        expect(doc.getRaw('hostname')).not.toContain('//');
+        expect(doc.setRaw('hostname', '"new"')).toBe(true);
+        expect(doc.serialize()).toBe('hostname "new" // keep this comment\n');
+    });
+
+    it('rejects a Source string containing an unrepresentable quote', () => {
+        const doc = convarFormat.parse('hostname "before"\n')!;
+        const raw = convarFormat.codec.toRaw('say "hello"', 'text');
+        expect(doc.setRaw('hostname', raw)).toBe(false);
+        expect(doc.serialize()).toBe('hostname "before"\n');
+    });
+
+    it('keeps backslash escaping for idTech strings', () => {
+        const doc = idTechConvarFormat.parse('seta sv_hostname "before"\n')!;
+        const raw = idTechConvarFormat.codec.toRaw('say "hello" at C:\\games', 'text');
+        expect(raw).toBe('"say \\"hello\\" at C:\\\\games"');
+        expect(doc.setRaw('sv_hostname', raw)).toBe(true);
+        expect(idTechConvarFormat.codec.fromRaw(raw, 'text')).toBe('say "hello" at C:\\games');
+    });
+
+    it('allows literal quotes in bare-value convar dialects', () => {
+        const doc = sampFormat.parse('hostname before\n')!;
+        const raw = sampFormat.codec.toRaw('My "Server"', 'text');
+        expect(raw).toBe('My "Server"');
+        expect(doc.setRaw('hostname', raw)).toBe(true);
+        expect(doc.serialize()).toBe('hostname My "Server"\n');
     });
 
     it('preserves // comments and leading indentation', () => {

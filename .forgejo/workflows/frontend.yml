@@ -2,8 +2,8 @@ name: Frontend checks
 
 on:
   push:
-    branches: [main, fixes]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   frontend:
@@ -22,3 +22,10 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+
+  plugin:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build.sh

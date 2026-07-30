@@ -14,7 +14,7 @@
  */
 import type { Group, Schema } from '../formats/types';
 import type { GameConfig } from './registry';
-import { convarFormat } from '../formats/convar';
+import { idTechConvarFormat } from '../formats/convar';
 import { n, b, t } from './fields';
 
 const PATH_HINT =
@@ -149,7 +149,7 @@ export const idTechGames: GameConfig[] = defs.map((d) => ({
     gameName: d.gameName,
     fileName: 'server.cfg',
     dir: d.dir,
-    format: convarFormat,
+    format: idTechConvarFormat,
     schema: d.schema,
     loadHint: PATH_HINT,
 }));

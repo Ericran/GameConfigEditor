@@ -40,6 +40,7 @@ const ts3Ini = makeKeyValueFormat('ts3-ini', { codec: { boolTrue: '1', boolFalse
 
 // The Forest writes bare `key value` lines with on/off booleans.
 const forestCfg = makeConvarFormat('theforest', {
+    allowEmbeddedQuotes: true,
     codec: {
         boolTrue: 'on',
         boolFalse: 'off',
@@ -51,6 +52,7 @@ const forestCfg = makeConvarFormat('theforest', {
 
 // Hurtworld's autoexec.cfg is a list of console commands, values unquoted.
 const hurtworldCfg = makeConvarFormat('hurtworld', {
+    allowEmbeddedQuotes: true,
     codec: { quoteText: (v) => v, unquoteText: (r) => r },
 });
 
