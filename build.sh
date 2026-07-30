@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Palworld settings GameAP plugin (.wasm) using Docker only.
+# Build the game config editor GameAP plugin (.wasm) using Docker only.
 # Nothing needs to be installed on the host except Docker + git.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -20,7 +20,7 @@ if [ "$GO_VER" != "$PKG_VER" ] || [ "$GO_VER" != "$TS_VER" ]; then
 fi
 echo ">> building version ${GO_VER}"
 
-echo ">> [1/4] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_TAG})"
+echo ">> [1/3] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_TAG})"
 if [ ! -d .sdk/gameap/.git ]; then
   mkdir -p .sdk
   git clone --depth 1 --branch "${SDK_TAG}" https://github.com/gameap/gameap.git .sdk/gameap
@@ -32,16 +32,25 @@ fi
 # what the official trimmed "gameap-api" SDK does. Safe: unused by the guest.
 rm -f .sdk/gameap/pkg/proto/*_grpc.pb.go
 
-echo ">> [2/4] Build frontend bundle (Vite) in ${NODE_IMAGE}"
+echo ">> [2/3] Build frontend bundle (Vite) in ${NODE_IMAGE}"
+# `npm ci` (not `install`) so the bundle we embed is built from the committed
+# lockfile rather than whatever is newest in-range today. Note it replaces
+# frontend/node_modules wholesale - that directory is bind-mounted, so a build
+# also resets your local install to match the lockfile.
 docker run --rm -u "$U" -e HOME=/tmp -v "$PWD/frontend:/app" -w /app "${NODE_IMAGE}" \
-  sh -c "npm install --no-audit --no-fund && npm run build"
+  sh -c "npm ci --no-audit --no-fund && npm run build"
 
-echo ">> [3/4] Normalize CSS -> frontend/dist/plugin.css"
-srccss="$(ls frontend/dist/*.css 2>/dev/null | grep -v '/plugin\.css$' | head -1 || true)"
-if [ -n "${srccss:-}" ]; then cp "${srccss}" frontend/dist/plugin.css; else : > frontend/dist/plugin.css; fi
-[ -f frontend/dist/plugin.js ] || { echo "!! frontend build did not produce plugin.js"; exit 1; }
+# Vite is configured (build.lib.fileName / cssFileName) to emit exactly the two
+# names main.go embeds, so there is nothing to rename here - just verify.
+[ -f frontend/dist/plugin.js ] || { echo "!! frontend build did not produce plugin.js" >&2; exit 1; }
+# go:embed fails on a missing file; Tailwind always emits CSS, so an absent
+# plugin.css means something changed upstream. Don't break the build, but say so.
+if [ ! -f frontend/dist/plugin.css ]; then
+  echo "!! warning: no plugin.css emitted - embedding an empty stylesheet" >&2
+  : > frontend/dist/plugin.css
+fi
 
-echo ">> [4/4] Compile WASM (TinyGo) in ${TINYGO_IMAGE}"
+echo ">> [3/3] Compile WASM (TinyGo) in ${TINYGO_IMAGE}"
 docker run --rm -u "$U" \
   -e HOME=/tmp \
   -e GOCACHE=/src/.cache/go-build \

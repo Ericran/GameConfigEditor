@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref, computed } from 'vue';
+import type { ComputedRef } from 'vue';
 import axios from 'axios';
 import type { ServerTabProps } from '@gameap/plugin-sdk';
 import { useServerAbilities } from '@gameap/plugin-sdk';
+import Banner from './Banner.vue';
+import FieldInput from './FieldInput.vue';
+import type { ConfigValue, FType } from '../formats/types';
+import { errMsg, useAsyncPanel } from '../composables/useAsyncPanel';
 
 /**
  * "Launch Settings" server tab - edits a server's start-command variables
@@ -29,7 +34,7 @@ interface SettingDef {
     admin_var?: boolean;
 }
 
-let abilitiesRef: any = null;
+let abilitiesRef: ComputedRef<string[]> | null = null;
 try {
     abilitiesRef = useServerAbilities();
 } catch {
@@ -41,21 +46,14 @@ const canEdit = computed(() => {
 });
 
 const base = `/api/servers/${props.serverId}`;
-const loading = ref(false);
-const saving = ref(false);
-const error = ref<string | null>(null);
-const notice = ref<string | null>(null);
+const { loading, saving, error, notice, reset } = useAsyncPanel();
 const unsupported = ref(false);
 const defs = ref<SettingDef[]>([]);
-const values = reactive<Record<string, any>>({});
+const values = reactive<Record<string, ConfigValue>>({});
 const dirty = ref(false);
 
-function errMsg(e: any, fallback: string): string {
-    return e?.response?.data?.message || e?.response?.data?.error || e?.message || fallback;
-}
-
 // Map GameAP's declared var type to an input kind.
-function kindOf(def: SettingDef): 'bool' | 'number' | 'text' {
+function kindOf(def: SettingDef): FType {
     const t = (def.type ?? '').toLowerCase();
     if (t.includes('bool') || typeof def.value === 'boolean') return 'bool';
     if (t.includes('int') || t.includes('float') || t.includes('num') || typeof def.value === 'number') return 'number';
@@ -63,8 +61,7 @@ function kindOf(def: SettingDef): 'bool' | 'number' | 'text' {
 }
 
 async function load() {
-    error.value = null;
-    notice.value = null;
+    reset();
     unsupported.value = false;
     loading.value = true;
     try {
@@ -84,8 +81,7 @@ async function load() {
 
 async function save() {
     saving.value = true;
-    error.value = null;
-    notice.value = null;
+    reset();
     try {
         const payload = defs.value.map((d) => ({ name: d.name, value: values[d.name] }));
         await axios.put(`${base}/settings`, payload);
@@ -98,29 +94,29 @@ async function save() {
     }
 }
 
-const inputClass =
-    'rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 text-sm outline-none focus:border-sky-500 disabled:opacity-60';
+function update(name: string, v: ConfigValue) {
+    values[name] = v;
+    dirty.value = true;
+}
 
 load();
 </script>
 
 <template>
     <div class="flex flex-col min-h-[420px] h-full text-sm text-stone-800 dark:text-stone-200">
-        <div
-            v-if="notice"
-            class="m-2 rounded border border-lime-300 bg-lime-50 px-3 py-1.5 text-lime-800 dark:border-lime-800 dark:bg-lime-900/20 dark:text-lime-300"
-        >
-            <i class="fa-solid fa-check mr-1"></i>{{ notice }}
-        </div>
-        <div
-            v-if="error"
-            class="m-2 flex items-center justify-between gap-3 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
-        >
-            <span><i class="fa-solid fa-circle-exclamation mr-1"></i>{{ error }}</span>
-            <button class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700" @click="load">
-                Retry
-            </button>
-        </div>
+        <Banner v-if="notice" class="m-2" tone="success" icon="fa-solid fa-check">{{ notice }}</Banner>
+
+        <Banner v-if="error" class="m-2" tone="danger" icon="fa-solid fa-circle-exclamation">
+            {{ error }}
+            <template #action>
+                <button
+                    class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                    @click="load"
+                >
+                    Retry
+                </button>
+            </template>
+        </Banner>
 
         <div v-if="loading" class="p-6 text-center text-stone-500 dark:text-stone-400">
             <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading launch settings...
@@ -135,13 +131,9 @@ load();
         </div>
 
         <template v-else>
-            <div
-                v-if="!canEdit"
-                class="m-2 rounded border border-amber-400 bg-amber-50 px-3 py-1.5 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-            >
-                <i class="fa-solid fa-lock mr-1"></i>You don't have the <code>game-server-settings</code> permission -
-                these are read-only.
-            </div>
+            <Banner v-if="!canEdit" class="m-2" tone="caution" icon="fa-solid fa-lock">
+                You don't have the <code>game-server-settings</code> permission - these are read-only.
+            </Banner>
 
             <div class="flex-1 overflow-auto p-3">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
@@ -154,30 +146,11 @@ load();
                                 >admin</span
                             >
                         </span>
-                        <input
-                            v-if="kindOf(d) === 'bool'"
-                            v-model="values[d.name]"
-                            type="checkbox"
-                            class="w-4 h-4"
+                        <FieldInput
+                            :model-value="values[d.name]"
+                            :type="kindOf(d)"
                             :disabled="!canEdit"
-                            @change="dirty = true"
-                        />
-                        <input
-                            v-else-if="kindOf(d) === 'number'"
-                            v-model.number="values[d.name]"
-                            type="number"
-                            step="any"
-                            :class="inputClass"
-                            :disabled="!canEdit"
-                            @input="dirty = true"
-                        />
-                        <input
-                            v-else
-                            v-model="values[d.name]"
-                            type="text"
-                            :class="inputClass"
-                            :disabled="!canEdit"
-                            @input="dirty = true"
+                            @update:model-value="update(d.name, $event)"
                         />
                     </label>
                 </div>

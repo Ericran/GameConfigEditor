@@ -2,24 +2,19 @@
  * ARK: Survival Evolved - GameUserSettings.ini + Game.ini.
  *
  * Keys live under several INI sections, so field addresses are section-qualified
- * via addr(). ARK INI keys are case-insensitive (handled by the ci INI format),
+ * via section(). ARK INI keys are case-insensitive (handled by the ci INI format),
  * booleans are True/False, strings unquoted. Repeated/array keys
  * (PerLevelStatsMultiplier[...], engram overrides, etc.) are intentionally NOT
  * in the schema - they fall through to the raw "Advanced" groups untouched.
  */
-import type { FieldDef, Schema } from '../../formats/types';
-import { addr } from '../../formats/shared';
+import type { Schema } from '../../formats/types';
+import { section } from '../fields';
 
-// Section-scoped field builders (key becomes a section-qualified address).
-const b = (s: string, k: string, l: string): FieldDef => ({ key: addr(s, k), label: l, type: 'bool' });
-const nf = (s: string, k: string, l: string): FieldDef => ({ key: addr(s, k), label: l, type: 'number' });
-const tf = (s: string, k: string, l: string): FieldDef => ({ key: addr(s, k), label: l, type: 'text' });
-
-const SS = 'ServerSettings';
-const SESS = 'SessionSettings';
-const GSESS = '/Script/Engine.GameSession';
-const MOTD = 'MessageOfTheDay';
-const GM = '/script/shootergame.shootergamemode';
+const ss = section('ServerSettings');
+const sess = section('SessionSettings');
+const gsess = section('/Script/Engine.GameSession');
+const motd = section('MessageOfTheDay');
+const gm = section('/script/shootergame.shootergamemode');
 
 export const arkGameUserSettingsSchema: Schema = [
     {
@@ -27,15 +22,15 @@ export const arkGameUserSettingsSchema: Schema = [
         title: 'Server / Identity',
         icon: 'fa-solid fa-id-card',
         fields: [
-            tf(SESS, 'SessionName', 'Server name (browser)'),
-            nf(GSESS, 'MaxPlayers', 'Max players'),
-            tf(SS, 'ServerPassword', 'Join password (blank = open)'),
-            tf(SS, 'ServerAdminPassword', 'Admin / RCON password'),
-            b(SS, 'ServerPVE', 'PvE mode (no PvP)'),
-            b(SS, 'ServerHardcore', 'Hardcore (death resets to lvl 1)'),
-            b(SS, 'ServerCrosshair', 'Show crosshair'),
-            b(SS, 'RCONEnabled', 'Enable RCON'),
-            nf(SS, 'RCONPort', 'RCON port'),
+            sess.t('SessionName', 'Server name (browser)'),
+            gsess.n('MaxPlayers', 'Max players'),
+            ss.t('ServerPassword', 'Join password (blank = open)'),
+            ss.t('ServerAdminPassword', 'Admin / RCON password'),
+            ss.b('ServerPVE', 'PvE mode (no PvP)'),
+            ss.b('ServerHardcore', 'Hardcore (death resets to lvl 1)'),
+            ss.b('ServerCrosshair', 'Show crosshair'),
+            ss.b('RCONEnabled', 'Enable RCON'),
+            ss.n('RCONPort', 'RCON port'),
         ],
     },
     {
@@ -43,16 +38,16 @@ export const arkGameUserSettingsSchema: Schema = [
         title: 'Rates & Difficulty',
         icon: 'fa-solid fa-gauge-high',
         fields: [
-            nf(SS, 'XPMultiplier', 'XP rate'),
-            nf(SS, 'TamingSpeedMultiplier', 'Taming speed'),
-            nf(SS, 'HarvestAmountMultiplier', 'Harvest amount'),
-            nf(SS, 'HarvestHealthMultiplier', 'Resource node HP'),
-            nf(SS, 'ResourcesRespawnPeriodMultiplier', 'Resource respawn time (lower = faster)'),
-            nf(SS, 'DifficultyOffset', 'Difficulty offset (0-1)'),
-            nf(SS, 'OverrideOfficialDifficulty', 'Override difficulty (5 = max lvl 150)'),
-            nf(SS, 'DayCycleSpeedScale', 'Day/night cycle speed'),
-            nf(SS, 'DayTimeSpeedScale', 'Daytime length'),
-            nf(SS, 'NightTimeSpeedScale', 'Nighttime length'),
+            ss.n('XPMultiplier', 'XP rate'),
+            ss.n('TamingSpeedMultiplier', 'Taming speed'),
+            ss.n('HarvestAmountMultiplier', 'Harvest amount'),
+            ss.n('HarvestHealthMultiplier', 'Resource node HP'),
+            ss.n('ResourcesRespawnPeriodMultiplier', 'Resource respawn time (lower = faster)'),
+            ss.n('DifficultyOffset', 'Difficulty offset (0-1)'),
+            ss.n('OverrideOfficialDifficulty', 'Override difficulty (5 = max lvl 150)'),
+            ss.n('DayCycleSpeedScale', 'Day/night cycle speed'),
+            ss.n('DayTimeSpeedScale', 'Daytime length'),
+            ss.n('NightTimeSpeedScale', 'Nighttime length'),
         ],
     },
     {
@@ -60,12 +55,12 @@ export const arkGameUserSettingsSchema: Schema = [
         title: 'Combat & Structures',
         icon: 'fa-solid fa-gavel',
         fields: [
-            nf(SS, 'PlayerDamageMultiplier', 'Player damage dealt'),
-            nf(SS, 'PlayerResistanceMultiplier', 'Player damage taken (lower = tankier)'),
-            nf(SS, 'DinoDamageMultiplier', 'Wild dino damage'),
-            nf(SS, 'DinoResistanceMultiplier', 'Wild dino damage taken'),
-            nf(SS, 'StructureDamageMultiplier', 'Structure damage dealt'),
-            nf(SS, 'StructureResistanceMultiplier', 'Structure damage taken'),
+            ss.n('PlayerDamageMultiplier', 'Player damage dealt'),
+            ss.n('PlayerResistanceMultiplier', 'Player damage taken (lower = tankier)'),
+            ss.n('DinoDamageMultiplier', 'Wild dino damage'),
+            ss.n('DinoResistanceMultiplier', 'Wild dino damage taken'),
+            ss.n('StructureDamageMultiplier', 'Structure damage dealt'),
+            ss.n('StructureResistanceMultiplier', 'Structure damage taken'),
         ],
     },
     {
@@ -73,30 +68,30 @@ export const arkGameUserSettingsSchema: Schema = [
         title: 'Rules & Toggles',
         icon: 'fa-solid fa-sliders',
         fields: [
-            b(SS, 'allowThirdPersonPlayer', 'Allow 3rd-person camera'),
-            b(SS, 'ShowMapPlayerLocation', 'Show player location on map'),
-            b(SS, 'globalVoiceChat', 'Global voice chat'),
-            b(SS, 'proximityChat', 'Proximity-only chat'),
-            b(SS, 'alwaysNotifyPlayerJoined', 'Broadcast joins'),
-            b(SS, 'alwaysNotifyPlayerLeft', 'Broadcast leaves'),
-            b(SS, 'serverForceNoHUD', 'Force HUD off'),
-            b(SS, 'ShowFloatingDamageText', 'Floating damage numbers'),
-            b(SS, 'EnablePvPGamma', 'Allow gamma in PvP'),
-            b(SS, 'AllowFlyerCarryPvE', 'Flyers carry wild dinos (PvE)'),
-            b(SS, 'DisableStructureDecayPvE', 'Disable PvE structure decay'),
-            nf(SS, 'PvEStructureDecayPeriodMultiplier', 'PvE decay timer'),
-            b(SS, 'AllowCaveBuildingPvE', 'Allow cave building (PvE)'),
-            b(SS, 'ClampResourceHarvestDamage', 'Clamp harvest damage'),
-            nf(SS, 'MaxTamedDinos', 'Server tame cap'),
-            nf(SS, 'AutoSavePeriodMinutes', 'Auto-save interval (min)'),
-            b(SS, 'bUseSingleplayerSettings', 'Use singleplayer balance'),
+            ss.b('allowThirdPersonPlayer', 'Allow 3rd-person camera'),
+            ss.b('ShowMapPlayerLocation', 'Show player location on map'),
+            ss.b('globalVoiceChat', 'Global voice chat'),
+            ss.b('proximityChat', 'Proximity-only chat'),
+            ss.b('alwaysNotifyPlayerJoined', 'Broadcast joins'),
+            ss.b('alwaysNotifyPlayerLeft', 'Broadcast leaves'),
+            ss.b('serverForceNoHUD', 'Force HUD off'),
+            ss.b('ShowFloatingDamageText', 'Floating damage numbers'),
+            ss.b('EnablePvPGamma', 'Allow gamma in PvP'),
+            ss.b('AllowFlyerCarryPvE', 'Flyers carry wild dinos (PvE)'),
+            ss.b('DisableStructureDecayPvE', 'Disable PvE structure decay'),
+            ss.n('PvEStructureDecayPeriodMultiplier', 'PvE decay timer'),
+            ss.b('AllowCaveBuildingPvE', 'Allow cave building (PvE)'),
+            ss.b('ClampResourceHarvestDamage', 'Clamp harvest damage'),
+            ss.n('MaxTamedDinos', 'Server tame cap'),
+            ss.n('AutoSavePeriodMinutes', 'Auto-save interval (min)'),
+            ss.b('bUseSingleplayerSettings', 'Use singleplayer balance'),
         ],
     },
     {
         id: 'motd',
         title: 'Message of the Day',
         icon: 'fa-solid fa-comment',
-        fields: [tf(MOTD, 'Message', 'MOTD message'), nf(MOTD, 'Duration', 'MOTD duration (s)')],
+        fields: [motd.t('Message', 'MOTD message'), motd.n('Duration', 'MOTD duration (s)')],
     },
 ];
 
@@ -106,15 +101,15 @@ export const arkGameIniSchema: Schema = [
         title: 'Breeding & Imprinting',
         icon: 'fa-solid fa-egg',
         fields: [
-            nf(GM, 'BabyMatureSpeedMultiplier', 'Baby maturation speed'),
-            nf(GM, 'MatingIntervalMultiplier', 'Mating cooldown (lower = faster)'),
-            nf(GM, 'EggHatchSpeedMultiplier', 'Egg hatch speed'),
-            nf(GM, 'BabyCuddleIntervalMultiplier', 'Imprint cuddle interval (lower = fewer)'),
-            nf(GM, 'BabyImprintingStatScaleMultiplier', 'Imprint stat bonus'),
-            nf(GM, 'BabyImprintAmountMultiplier', 'Imprint % per cuddle'),
-            nf(GM, 'BabyFoodConsumptionSpeedMultiplier', 'Baby food drain'),
-            nf(GM, 'MatingSpeedMultiplier', 'Mating speed'),
-            nf(GM, 'LayEggIntervalMultiplier', 'Wild egg drop frequency'),
+            gm.n('BabyMatureSpeedMultiplier', 'Baby maturation speed'),
+            gm.n('MatingIntervalMultiplier', 'Mating cooldown (lower = faster)'),
+            gm.n('EggHatchSpeedMultiplier', 'Egg hatch speed'),
+            gm.n('BabyCuddleIntervalMultiplier', 'Imprint cuddle interval (lower = fewer)'),
+            gm.n('BabyImprintingStatScaleMultiplier', 'Imprint stat bonus'),
+            gm.n('BabyImprintAmountMultiplier', 'Imprint % per cuddle'),
+            gm.n('BabyFoodConsumptionSpeedMultiplier', 'Baby food drain'),
+            gm.n('MatingSpeedMultiplier', 'Mating speed'),
+            gm.n('LayEggIntervalMultiplier', 'Wild egg drop frequency'),
         ],
     },
     {
@@ -122,13 +117,13 @@ export const arkGameIniSchema: Schema = [
         title: 'Gameplay & Progression',
         icon: 'fa-solid fa-arrow-trend-up',
         fields: [
-            nf(GM, 'GlobalSpoilingTimeMultiplier', 'Spoil timers'),
-            nf(GM, 'PassiveTameIntervalMultiplier', 'Passive-tame feed interval'),
-            nf(GM, 'CropGrowthSpeedMultiplier', 'Crop growth speed'),
-            nf(GM, 'OverrideMaxExperiencePointsPlayer', 'Player XP cap'),
-            nf(GM, 'OverrideMaxExperiencePointsDino', 'Dino XP cap'),
-            b(GM, 'bUseCorpseLocator', 'Show death-bag beam'),
-            b(GM, 'bAllowUnlimitedRespecs', 'Unlimited mindwipes'),
+            gm.n('GlobalSpoilingTimeMultiplier', 'Spoil timers'),
+            gm.n('PassiveTameIntervalMultiplier', 'Passive-tame feed interval'),
+            gm.n('CropGrowthSpeedMultiplier', 'Crop growth speed'),
+            gm.n('OverrideMaxExperiencePointsPlayer', 'Player XP cap'),
+            gm.n('OverrideMaxExperiencePointsDino', 'Dino XP cap'),
+            gm.b('bUseCorpseLocator', 'Show death-bag beam'),
+            gm.b('bAllowUnlimitedRespecs', 'Unlimited mindwipes'),
         ],
     },
 ];

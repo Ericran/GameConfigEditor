@@ -2,7 +2,9 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import type { ServerTabProps } from '@gameap/plugin-sdk';
+import Banner from './Banner.vue';
 import ConfigEditor from './ConfigEditor.vue';
+import { errMsg, useAsyncPanel } from '../composables/useAsyncPanel';
 import { gamesFor, configPath, configDir, type GameConfig } from '../games/registry';
 
 /**
@@ -23,27 +25,25 @@ const gameId = props.server?.game_id;
 const configs = gamesFor(gameId);
 const selected = ref<GameConfig | null>(configs[0] ?? null);
 
-const loading = ref(false);
-const saving = ref(false);
-const error = ref<string | null>(null);
+const { loading, saving, error, notice, reset } = useAsyncPanel();
 // Only true after a failed LOAD (not a failed save) - gates the game's loadHint.
 const showLoadHint = ref(false);
-const notice = ref<string | null>(null);
 const content = ref<string | null>(null);
 const reloadKey = ref(0);
 
 const base = `/api/file-manager/${props.serverId}`;
 
-function errMsg(e: any, fallback: string): string {
-    return e?.response?.data?.message || e?.response?.data?.error || e?.message || fallback;
+/** File extension without the dot - the editor's `extension` prop expects it. */
+function extOf(fileName: string): string {
+    const i = fileName.lastIndexOf('.');
+    return i === -1 ? '' : fileName.slice(i + 1).toLowerCase();
 }
 
 async function load() {
     const cfg = selected.value;
     if (!cfg) return;
-    error.value = null;
+    reset();
     showLoadHint.value = false;
-    notice.value = null;
     loading.value = true;
     content.value = null;
     try {
@@ -66,8 +66,7 @@ async function onSave(newContent: string) {
     const cfg = selected.value;
     if (!cfg) return;
     saving.value = true;
-    error.value = null;
-    notice.value = null;
+    reset();
     try {
         const fd = new FormData();
         fd.append('disk', cfg.disk ?? 'server');
@@ -118,32 +117,27 @@ if (selected.value) load();
                 </button>
             </div>
 
-            <div
-                v-if="notice"
-                class="m-2 rounded border border-lime-300 bg-lime-50 px-3 py-1.5 text-lime-800 dark:border-lime-800 dark:bg-lime-900/20 dark:text-lime-300"
-            >
-                <i class="fa-solid fa-check mr-1"></i>{{ notice }}
-            </div>
-            <div
-                v-if="error"
-                class="m-2 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
-            >
-                <div class="flex items-center justify-between gap-3">
-                    <span><i class="fa-solid fa-circle-exclamation mr-1"></i>{{ error }}</span>
+            <Banner v-if="notice" class="m-2" tone="success" icon="fa-solid fa-check">{{ notice }}</Banner>
+
+            <Banner v-if="error" class="m-2" tone="danger" icon="fa-solid fa-circle-exclamation">
+                {{ error }}
+                <template #action>
                     <button
                         class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
                         @click="load"
                     >
                         Retry
                     </button>
-                </div>
-                <p
-                    v-if="showLoadHint && selected?.loadHint"
-                    class="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-red-600/90 dark:text-red-300/80"
-                >
-                    <i class="fa-solid fa-circle-info mr-1"></i>{{ selected.loadHint }}
-                </p>
-            </div>
+                </template>
+                <template #detail>
+                    <p
+                        v-if="showLoadHint && selected?.loadHint"
+                        class="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-red-600/90 dark:text-red-300/80"
+                    >
+                        <i class="fa-solid fa-circle-info mr-1"></i>{{ selected.loadHint }}
+                    </p>
+                </template>
+            </Banner>
 
             <div v-if="loading" class="p-6 text-center text-stone-500 dark:text-stone-400">
                 <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading {{ selected?.fileName }}...
@@ -157,7 +151,7 @@ if (selected.value) load();
                 :content="content"
                 :file-path="configPath(selected)"
                 :file-name="selected.fileName"
-                extension="ini"
+                :extension="extOf(selected.fileName)"
                 :plugin-id="pluginId"
                 :game="selected"
                 embedded

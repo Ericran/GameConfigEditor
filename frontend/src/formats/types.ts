@@ -15,6 +15,13 @@
 
 export type FType = 'text' | 'number' | 'bool' | 'select' | 'raw';
 
+/**
+ * A typed form value. Every `FType` reduces to one of these three: `bool` is a
+ * boolean, `number` is a number (or the original string when the file holds
+ * something unparseable), and the rest are strings.
+ */
+export type ConfigValue = string | number | boolean;
+
 export interface FieldDef {
     /** Address the owning ConfigDoc understands (see ConfigDoc.getRaw). */
     key: string;
@@ -69,8 +76,8 @@ export interface ConfigDoc {
 
 /** Typed form value <-> raw on-disk string, per this format's conventions. */
 export interface Codec {
-    fromRaw(raw: string | undefined, type: FType): any;
-    toRaw(v: any, type: FType): string;
+    fromRaw(raw: string | undefined, type: FType): ConfigValue;
+    toRaw(v: ConfigValue, type: FType): string;
 }
 
 export interface Format {

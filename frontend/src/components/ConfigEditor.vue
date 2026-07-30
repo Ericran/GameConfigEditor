@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { FileEditorProps } from '@gameap/plugin-sdk';
+import type { ComputedRef } from 'vue';
+import type { FileEditorProps, ServerData } from '@gameap/plugin-sdk';
 import { useServer } from '@gameap/plugin-sdk';
-import type { FieldDef, FType, Group } from '../formats/types';
+import Banner from './Banner.vue';
+import FieldInput from './FieldInput.vue';
+import { useConfigForm } from '../composables/useConfigForm';
 import { resolve, type GameConfig } from '../games/registry';
 
 /**
@@ -16,112 +19,70 @@ import { resolve, type GameConfig } from '../games/registry';
  * can't be parsed (or no game matches), it falls back to a raw text editor.
  *
  * `game` is passed explicitly when hosted in the server tab; the file-manager
- * editor resolves it from the server's `game_id` + the file name instead.
+ * editor resolves it from the server's game code + the file name instead.
+ * Building the form itself lives in useConfigForm.
  */
 const props = defineProps<FileEditorProps & { embedded?: boolean; game?: GameConfig }>();
 const emit = defineEmits<{ save: [content: string]; close: [] }>();
 
 // ---- server context (best-effort) ----
-let serverRef: any = null;
+// useServer() throws when this is mounted outside a plugin host context, so
+// probe it defensively - but keep the SDK's type. ServerData is flat:
+// process_active and game_id are top-level fields.
+let serverRef: ComputedRef<ServerData | null> | null = null;
 try {
     serverRef = useServer();
 } catch {
     serverRef = null;
 }
-const serverRunning = computed(
-    () => !!(serverRef?.value?.data?.process_active ?? serverRef?.value?.process_active),
-);
-const serverGameId: string | undefined = serverRef?.value?.data?.game_id ?? serverRef?.value?.game_id;
+// Deliberately truthy rather than `=== true`: the panel may serialise this as
+// 1/0, and under-reporting a running server would drop the lost-edits warning.
+const serverRunning = computed(() => !!serverRef?.value?.process_active);
 
 // ---- resolve which game/config this is ----
-const game: GameConfig | undefined = props.game ?? resolve(serverGameId, props.fileName);
+// The panel hands a file editor the server's game code as a prop, available
+// synchronously at setup - unlike useServer(), whose ref can still be null this
+// tick. Preferring the prop keeps us from falling through to file-name-only
+// resolution and labelling the form with another game's schema.
+const gameCode = props.gameCode ?? serverRef?.value?.game_id;
+const game: GameConfig | undefined = props.game ?? resolve(gameCode, props.fileName);
 const codec = game?.format.codec;
 
 // ---- parse ----
 const contentText =
     typeof props.content === 'string' ? props.content : new TextDecoder().decode(props.content as ArrayBuffer);
 const rawText = ref(contentText);
-const dirty = ref(false);
-const rev = ref(0); // reactivity token: bumped on every doc mutation
-
 const doc = game ? game.format.parse(contentText) : null;
-const parseFailed = ref(!doc);
+const parseFailed = !doc;
 
-// ---- schema + inferred (unknown-key) groups ----
-const schema: Group[] = game?.schema ?? [];
-const schemaKeys = new Set(schema.flatMap((g) => g.fields.map((f) => f.key)));
+// ---- form ----
+const form = doc && codec ? useConfigForm(doc, game?.schema ?? [], codec) : null;
+const groups = computed(() => form?.groups.value ?? []);
+const models = form?.models ?? {};
 
-function inferType(raw: string): FType {
-    const s = raw.trim();
-    if (/^(true|false)$/i.test(s)) return 'bool';
-    if (/^-?\d+(\.\d+)?$/.test(s)) return 'number';
-    return 'raw';
-}
-
-const norm = doc?.normKey ? (a: string) => doc.normKey!(a) : (a: string) => a;
-const schemaKeysNorm = new Set([...schemaKeys].map(norm));
-
-const inferredGroups: Group[] = [];
-if (doc) {
-    const bySection = new Map<string, FieldDef[]>();
-    for (const key of doc.keys()) {
-        if (schemaKeysNorm.has(norm(key))) continue;
-        const section = doc.sectionOf(key);
-        const arr = bySection.get(section) ?? [];
-        arr.push({ key, label: doc.labelOf(key), type: inferType(doc.getRaw(key) ?? '') });
-        bySection.set(section, arr);
-    }
-    for (const [section, fields] of bySection) {
-        inferredGroups.push({
-            id: section ? `section:${section}` : 'advanced',
-            title: section || 'Advanced',
-            icon: section ? 'fa-solid fa-folder' : 'fa-solid fa-gear',
-            fields,
-        });
-    }
-}
-
-// ---- reactive models over the doc, via the format's codec ----
-const models: Record<string, any> = {};
-function buildModel(f: FieldDef) {
-    if (models[f.key] || !doc || !codec) return;
-    models[f.key] = computed({
-        get: () => {
-            void rev.value; // track doc mutations
-            return codec.fromRaw(doc.getRaw(f.key), f.type);
-        },
-        set: (v: any) => {
-            doc.setRaw(f.key, codec.toRaw(v, f.type));
-            rev.value++;
-            dirty.value = true;
-        },
-    });
-}
-for (const g of schema) for (const f of g.fields) buildModel(f);
-for (const g of inferredGroups) for (const f of g.fields) buildModel(f);
-
-const renderGroups = computed<Group[]>(() => [...schema.filter((g) => g.fields.length), ...inferredGroups]);
+// The raw-text fallback tracks its own edits; otherwise the form owns `dirty`.
+const rawDirty = ref(false);
+const dirty = computed(() => form?.dirty.value ?? rawDirty.value);
 
 // ---- relay guardrail (generic; e.g. Palworld PublicIP behind a WireGuard relay) ----
 const relayIpSet = computed(() => {
-    void rev.value;
-    if (!game?.relayGuard || !doc || !codec) return false;
-    const v = codec.fromRaw(doc.getRaw(game.relayGuard.ipKey), 'text');
+    if (!game?.relayGuard || !form || !codec) return false;
+    const v = codec.fromRaw(form.raw(game.relayGuard.ipKey), 'text');
     return typeof v === 'string' && v.trim().length > 0;
 });
 function clearRelay() {
-    if (!game?.relayGuard || !doc || !codec) return;
+    if (!game?.relayGuard || !doc || !codec || !form) return;
     const { ipKey, portKey } = game.relayGuard;
     if (doc.has(ipKey)) doc.setRaw(ipKey, codec.toRaw('', 'text'));
     if (portKey && doc.has(portKey)) doc.setRaw(portKey, '');
-    rev.value++;
-    dirty.value = true;
+    form.touch();
 }
 
 // ---- actions ----
 function onSave() {
-    emit('save', parseFailed.value || !doc ? rawText.value : doc.serialize());
-    dirty.value = false;
+    emit('save', doc ? doc.serialize() : rawText.value);
+    if (form) form.dirty.value = false;
+    else rawDirty.value = false;
 }
 function onClose() {
     emit('close');
@@ -131,27 +92,21 @@ defineExpose({ save: onSave, close: onClose });
 const noGame = !game;
 const title = game?.gameName ?? props.fileName;
 const note = game?.note;
-const inputClass =
-    'rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 px-2 py-1 text-sm outline-none focus:border-sky-500';
 </script>
 
 <template>
     <div class="pws-root flex flex-col h-full max-h-full text-sm text-stone-800 dark:text-stone-200">
         <!-- running-server warning -->
-        <div
-            v-if="serverRunning"
-            class="m-2 rounded-md border border-orange-400 bg-orange-50 px-3 py-2 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300"
-        >
-            <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+        <Banner v-if="serverRunning" class="m-2" tone="warning" icon="fa-solid fa-triangle-exclamation">
             <template v-if="game?.stopWarning"
-                >This server appears to be RUNNING. {{ title }} overwrites this file on shutdown, so stop the
-                server before saving or your changes will be lost.</template
+                >This server appears to be RUNNING. {{ title }} overwrites this file on shutdown, so stop the server
+                before saving or your changes will be lost.</template
             >
             <template v-else
-                >This server appears to be RUNNING. Some games only read this file at startup - restart the
-                server for changes to take effect.</template
+                >This server appears to be RUNNING. Some games only read this file at startup - restart the server
+                for changes to take effect.</template
             >
-        </div>
+        </Banner>
 
         <!-- raw fallback -->
         <div v-if="parseFailed" class="flex-1 flex flex-col p-2 gap-2 min-h-0">
@@ -167,39 +122,30 @@ const inputClass =
                 v-model="rawText"
                 spellcheck="false"
                 class="flex-1 w-full font-mono text-xs p-2 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 outline-none"
-                @input="dirty = true"
+                @input="rawDirty = true"
             ></textarea>
         </div>
 
         <!-- structured form -->
         <div v-else class="flex-1 overflow-auto p-3 space-y-6 min-h-0">
             <!-- informational note (e.g. CS2 config layering) -->
-            <div
-                v-if="note"
-                class="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300"
-            >
-                <i class="fa-solid fa-circle-info mr-1"></i>{{ note }}
-            </div>
+            <Banner v-if="note" tone="info" icon="fa-solid fa-circle-info">{{ note }}</Banner>
 
             <!-- relay guardrail -->
-            <div
-                v-if="relayIpSet"
-                class="rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 flex items-center justify-between gap-3"
-            >
-                <span
-                    ><i class="fa-solid fa-shield-halved mr-1"></i>A public IP is set. For a WireGuard relay or an
-                    unlisted server this advertises your real IP to the community browser. Clear it unless you
-                    intend to be publicly listed.</span
-                >
-                <button
-                    class="shrink-0 rounded bg-amber-600 px-2 py-1 text-white text-xs hover:bg-amber-700"
-                    @click="clearRelay"
-                >
-                    Clear public IP{{ game?.relayGuard?.portKey ? ' &amp; port' : '' }}
-                </button>
-            </div>
+            <Banner v-if="relayIpSet" tone="caution" icon="fa-solid fa-shield-halved">
+                A public IP is set. For a WireGuard relay or an unlisted server this advertises your real IP to the
+                community browser. Clear it unless you intend to be publicly listed.
+                <template #action>
+                    <button
+                        class="shrink-0 rounded bg-amber-600 px-2 py-1 text-white text-xs hover:bg-amber-700"
+                        @click="clearRelay"
+                    >
+                        Clear public IP{{ game?.relayGuard?.portKey ? ' &amp; port' : '' }}
+                    </button>
+                </template>
+            </Banner>
 
-            <section v-for="group in renderGroups" :key="group.id">
+            <section v-for="group in groups" :key="group.id">
                 <h3 class="font-semibold text-stone-600 dark:text-stone-400 mb-2 flex items-center gap-2">
                     <i :class="group.icon"></i>{{ group.title }}
                 </h3>
@@ -212,18 +158,7 @@ const inputClass =
                         <span class="text-xs text-stone-500 dark:text-stone-400">
                             {{ f.label }} <code class="opacity-60">{{ f.key }}</code>
                         </span>
-                        <input v-if="f.type === 'bool'" v-model="models[f.key].value" type="checkbox" class="w-4 h-4" />
-                        <select v-else-if="f.type === 'select'" v-model="models[f.key].value" :class="inputClass">
-                            <option v-for="o in f.options" :key="o" :value="o">{{ o }}</option>
-                        </select>
-                        <input
-                            v-else-if="f.type === 'number'"
-                            v-model.number="models[f.key].value"
-                            type="number"
-                            step="any"
-                            :class="inputClass"
-                        />
-                        <input v-else v-model="models[f.key].value" type="text" :class="inputClass" />
+                        <FieldInput v-model="models[f.key].value" :type="f.type" :options="f.options" />
                     </label>
                 </div>
             </section>

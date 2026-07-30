@@ -152,10 +152,25 @@ export function gamesFor(gameId: string | undefined | null): GameConfig[] {
     return games.filter((g) => g.gameId === gameId);
 }
 
-/** Resolve one config: prefer a game+file match, else fall back to file name alone. */
+/**
+ * Resolve one config: prefer a game+file match, else fall back to file name
+ * alone.
+ *
+ * The fallback needs care. Several games can register the same file name
+ * (`server.cfg` across the nine Source entries), so with no game to go on we
+ * cannot tell which one's curated schema applies - and picking the first would
+ * label a TF2 server's config with Counter-Strike fields and the CS2 layering
+ * note. The format is shared, so in that case keep the format and drop the
+ * game-specific parts: the user gets a correct generic editor instead of a
+ * confidently mislabelled one.
+ */
 export function resolve(gameId: string | undefined | null, fileName: string): GameConfig | undefined {
-    return (
-        games.find((g) => g.gameId === gameId && g.fileName === fileName) ??
-        games.find((g) => g.fileName === fileName)
-    );
+    const exact = games.find((g) => g.gameId === gameId && g.fileName === fileName);
+    if (exact) return exact;
+
+    const byName = games.filter((g) => g.fileName === fileName);
+    if (byName.length <= 1) return byName[0];
+
+    const { schema: _schema, note: _note, ...rest } = byName[0];
+    return { ...rest, gameName: fileName };
 }

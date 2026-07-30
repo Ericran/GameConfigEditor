@@ -5,7 +5,8 @@ frontend/dist/*
 
 # dependencies / caches
 frontend/node_modules
-frontend/package-lock.json
+# package-lock.json IS tracked on purpose - build.sh installs with `npm ci` so a
+# given commit always builds against the same dependency versions.
 /.sdk/
 /.cache/
 go.sum.tmp

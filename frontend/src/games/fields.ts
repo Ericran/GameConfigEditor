@@ -1,13 +1,30 @@
 /** Terse constructors for authoring per-game schemas. */
 import type { FieldDef } from '../formats/types';
+import { addr } from '../formats/shared';
 
 export const n = (key: string, label: string): FieldDef => ({ key, label, type: 'number' });
 export const b = (key: string, label: string): FieldDef => ({ key, label, type: 'bool' });
 export const t = (key: string, label: string): FieldDef => ({ key, label, type: 'text' });
-export const raw = (key: string, label: string): FieldDef => ({ key, label, type: 'raw' });
 export const sel = (key: string, label: string, options: string[]): FieldDef => ({
     key,
     label,
     type: 'select',
     options,
 });
+
+/**
+ * The same builders, but scoped to one INI section - every key becomes a
+ * section-qualified address. For sectioned formats (ARK/Unreal), where the same
+ * key name can appear under different sections:
+ *
+ *     const ss = section('ServerSettings');
+ *     ss.n('RCONPort', 'RCON port');
+ */
+export function section(s: string) {
+    return {
+        n: (key: string, label: string) => n(addr(s, key), label),
+        b: (key: string, label: string) => b(addr(s, key), label),
+        t: (key: string, label: string) => t(addr(s, key), label),
+        sel: (key: string, label: string, options: string[]) => sel(addr(s, key), label, options),
+    };
+}

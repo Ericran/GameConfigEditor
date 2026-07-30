@@ -54,21 +54,29 @@ A GameAP plugin is a single `.wasm` file with two parts:
 ```
 src/
   formats/            parse/serialise per format, shared ConfigDoc contract
-    types.ts          ConfigDoc / Codec / Format interfaces
+    types.ts          ConfigDoc / Codec / Format interfaces, ConfigValue
     shared.ts         codec factory + section-address encoding
     palworld.ts       OptionSettings=(...) one-liner
     keyvalue.ts       flat key=value (Minecraft, PZ, Terraria)
     ini.ts            multi-section INI, optional case-insensitivity (ARK)
     convar.ts         Source/GoldSource server.cfg convars
+    json.ts           JSON object, dotted paths (V Rising)
+    *.test.ts         round-trip / fidelity tests
   games/
     registry.ts       game_id -> { file, dir, format, schema?, guardrails }
     source.ts         all Source-family entries (shared convar schema)
-    fields.ts         terse schema field constructors (n/b/t/sel)
+    fields.ts         terse schema field constructors (n/b/t/sel, section())
     schemas/          curated per-game field schemas
+  composables/
+    useConfigForm.ts  ConfigDoc + Schema -> grouped fields & writable models
+    useAsyncPanel.ts  load/save state + panel error messages, shared by tabs
   components/
-    ConfigEditor.vue  generic, format+schema-driven editor
-    GameConfigTab.vue one tab that switches on server.game_id
-  index.ts            plugin definition: 1 tab + N game-gated file editors
+    ConfigEditor.vue      generic, format+schema-driven editor
+    GameConfigTab.vue     one tab that switches on server.game_id
+    LaunchSettingsTab.vue start-command vars via the panel settings API
+    Banner.vue            the notice/warning/error callout
+    FieldInput.vue        one control per field type
+  index.ts            plugin definition: 2 tabs + N game-gated file editors
 ```
 
 A **format** turns file text into a `ConfigDoc` that applies edits in place and
@@ -115,7 +123,8 @@ and renders anything not in the schema generically so nothing is ever hidden.
 ## Adding a game
 
 1. Pick or write a `Format` in `src/formats/` (most games reuse an existing one).
-2. Author a schema in `src/games/schemas/` using `n/b/t/sel` (`fields.ts`).
+2. Author a schema in `src/games/schemas/` using `n/b/t/sel` (`fields.ts`), or
+   `section('Name').n(...)` when the format has sections (INI).
 3. Add a `GameConfig` entry to `src/games/registry.ts` (`gameId`, `fileName`,
    `dir`, `format`, `schema`). Both the tab and a game-gated file editor wire up
    automatically.
@@ -132,11 +141,25 @@ containers.
 This will:
 1. clone the GameAP SDK into `./.sdk/gameap` at the tag matching your panel
    (`SDK_TAG`, default `v4.3.0`);
-2. build the frontend bundle (Vite) -> `frontend/dist/plugin.js` + `plugin.css`;
+2. build the frontend bundle (Vite, via `npm ci`) -> `frontend/dist/plugin.js` +
+   `plugin.css`;
 3. compile everything to `gameap-addon.wasm` with TinyGo.
 
 For frontend-only iteration you can `cd frontend && npm install && npm run build`
 with a local Node (no Docker needed for the JS bundle).
+
+## Tests & checks
+
+```sh
+cd frontend
+npm test           # vitest: format round-trips, form building, registry
+npm run typecheck  # vue-tsc, including .vue script blocks and templates
+```
+
+The format layer is where a bug would silently corrupt someone's live server
+config, so the tests concentrate there: every format must round-trip an untouched
+file byte-for-byte, and editing one key must rewrite exactly that key's line.
+`npm run test:watch` reruns on change.
 
 ## Install
 
@@ -159,9 +182,33 @@ supported config file in the file manager.
 - **SDK vendored via `replace`.** `github.com/gameap/gameap` is v4.x with no
   `/v4` module path, so it can't be `go get`-ed; `build.sh` checks it out into
   `./.sdk/gameap` and `go.mod` replaces to it.
-- **CSS output name** is normalized to `plugin.css` before the Go `//go:embed`.
+- **CSS output name.** Vite names a library's stylesheet after the package unless
+  told otherwise, but `main.go` embeds `dist/plugin.css` - so `vite.config.js`
+  sets `build.lib.cssFileName: 'plugin'` and `build.sh` only verifies the file.
 - **Version guard.** The plugin version lives in `main.go`, `frontend/package.json`,
   and `frontend/src/index.ts`; `build.sh` fails the build if they disagree.
+- **Reproducible installs.** `frontend/package-lock.json` is committed and
+  `build.sh` uses `npm ci`, so a given commit always embeds the same dependency
+  versions. Upgrades are explicit lockfile diffs rather than whatever resolved
+  newest on build day. `npm ci` replaces `frontend/node_modules` wholesale, and
+  that directory is bind-mounted into the container - so running `./build.sh`
+  also resets your local install to match the lockfile.
+- **TypeScript is capped at 6.x on purpose.** TS 7 is the native (Go) compiler:
+  the npm package is a launcher plus a ~27 MB platform binary, and the *legacy*
+  in-process JS API (`lib/typescript.js`, `ts.createProgram`,
+  `ts.createLanguageService`) is gone - the main export is only `lib/version.cjs`.
+  There IS a replacement API under `typescript/unstable/*` (a JSON-RPC client to
+  the binary offering Project/Program/Checker/Emitter, the full diagnostics
+  family, completions, an AST toolkit, and virtual-filesystem callbacks), but it
+  is explicitly namespaced `unstable` and does not freeze until TS 7.1 (expected
+  ~Oct 2026). `vue-tsc` still resolves `typescript/lib/tsc` and has not migrated,
+  so it fails on TS 7 with `ERR_PACKAGE_PATH_NOT_EXPORTED`; Vue/Svelte/Astro
+  template typechecking is broken on 7.0 across the board. Microsoft's own
+  guidance for anyone depending on the compiler API is to pin `typescript` to v6
+  until 7.1, which is what we do. TS 6.0.3 is the last JS-based release. Note
+  also that `vue-tsc` is this project's only TypeScript consumer - Vite and
+  Vitest transpile with esbuild and never invoke `tsc` - so TS 7's speedup would
+  not apply to the build either way. Revisit at 7.1.
 
 ## Config paths & caveats
 
