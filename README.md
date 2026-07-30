@@ -192,25 +192,8 @@ written down so a later change doesn't quietly undo one.
   `npm ci`, so a commit always builds against the same versions. Since
   `frontend/node_modules` is bind-mounted, a build also resets your local install
   to match the lockfile.
-- **TypeScript is held at 6.x** because `vue-tsc` can't run on TS 7 - see below.
-
-### Why TypeScript is held at 6.x
-
-TS 7 is the native (Go) compiler, and the legacy in-process JS API
-(`lib/typescript.js`, `ts.createProgram`) is gone; the package's main export is
-just `lib/version.cjs` beside a platform binary. A replacement API does exist at
-`typescript/unstable/*` - JSON-RPC to that binary, with Program/Checker/Emitter,
-diagnostics, completions and virtual-filesystem callbacks - but it stays
-`unstable` until TS 7.1 (~Oct 2026).
-
-`vue-tsc` hasn't migrated: it still resolves `typescript/lib/tsc` and dies with
-`ERR_PACKAGE_PATH_NOT_EXPORTED`. Template typechecking is broken on 7.0 for Vue,
-Svelte and Astro alike, and Microsoft's guidance for anyone using the compiler
-API is to pin to v6. TS 6.0.3 is the last JS-based release.
-
-Worth knowing either way: `vue-tsc` is the only thing here that invokes
-TypeScript at all - Vite and Vitest transpile with esbuild - so TS 7's speedup
-wouldn't touch the build. Revisit at 7.1.
+- **TypeScript is held at 6.x.** TS 7 drops the JS compiler API that `vue-tsc`
+  drives, so `npm run typecheck` fails on it. 6.0.3 is the last JS-based release.
 
 ## Config paths & caveats
 
