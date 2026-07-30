@@ -173,42 +173,44 @@ supported config file in the file manager.
 
 ## Build notes / gotchas (resolved)
 
-- **Go 1.26 required.** The GameAP v4.3.0 SDK declares `go 1.26` /
-  `toolchain go1.26.5`, so the TinyGo image must support Go 1.26 - TinyGo 0.39
-  (Go <=1.25) fails. Pinned to `tinygo/tinygo:0.41.1`.
-- **gRPC stub trim.** `pkg/plugin/proto` pulls in `pkg/proto`, which ships
-  host-side `*_grpc.pb.go` files whose TLS code TinyGo can't compile. `build.sh`
-  deletes them from the vendored SDK (they're unused by the guest).
+Why the build is shaped the way it is. All of it is handled already - these are
+written down so a later change doesn't quietly undo one.
+
+- **Go 1.26 toolchain.** The v4.3.0 SDK declares `go 1.26`, and TinyGo 0.39
+  (Go <=1.25) can't build it. Hence `tinygo/tinygo:0.41.1`.
+- **gRPC stubs trimmed.** `pkg/proto` ships host-side `*_grpc.pb.go` whose TLS
+  code TinyGo can't compile, so `build.sh` deletes them. The guest never uses them.
 - **SDK vendored via `replace`.** `github.com/gameap/gameap` is v4.x with no
-  `/v4` module path, so it can't be `go get`-ed; `build.sh` checks it out into
-  `./.sdk/gameap` and `go.mod` replaces to it.
-- **CSS output name.** Vite names a library's stylesheet after the package unless
-  told otherwise, but `main.go` embeds `dist/plugin.css` - so `vite.config.js`
-  sets `build.lib.cssFileName: 'plugin'` and `build.sh` only verifies the file.
-- **Version guard.** The plugin version lives in `main.go`, `frontend/package.json`,
-  and `frontend/src/index.ts`; `build.sh` fails the build if they disagree.
-- **Reproducible installs.** `frontend/package-lock.json` is committed and
-  `build.sh` uses `npm ci`, so a given commit always embeds the same dependency
-  versions. Upgrades are explicit lockfile diffs rather than whatever resolved
-  newest on build day. `npm ci` replaces `frontend/node_modules` wholesale, and
-  that directory is bind-mounted into the container - so running `./build.sh`
-  also resets your local install to match the lockfile.
-- **TypeScript is capped at 6.x on purpose.** TS 7 is the native (Go) compiler:
-  the npm package is a launcher plus a ~27 MB platform binary, and the *legacy*
-  in-process JS API (`lib/typescript.js`, `ts.createProgram`,
-  `ts.createLanguageService`) is gone - the main export is only `lib/version.cjs`.
-  There IS a replacement API under `typescript/unstable/*` (a JSON-RPC client to
-  the binary offering Project/Program/Checker/Emitter, the full diagnostics
-  family, completions, an AST toolkit, and virtual-filesystem callbacks), but it
-  is explicitly namespaced `unstable` and does not freeze until TS 7.1 (expected
-  ~Oct 2026). `vue-tsc` still resolves `typescript/lib/tsc` and has not migrated,
-  so it fails on TS 7 with `ERR_PACKAGE_PATH_NOT_EXPORTED`; Vue/Svelte/Astro
-  template typechecking is broken on 7.0 across the board. Microsoft's own
-  guidance for anyone depending on the compiler API is to pin `typescript` to v6
-  until 7.1, which is what we do. TS 6.0.3 is the last JS-based release. Note
-  also that `vue-tsc` is this project's only TypeScript consumer - Vite and
-  Vitest transpile with esbuild and never invoke `tsc` - so TS 7's speedup would
-  not apply to the build either way. Revisit at 7.1.
+  `/v4` module path, so it can't be `go get`-ed - it's cloned to `./.sdk/gameap`.
+- **CSS must be `plugin.css`.** Vite names a library stylesheet after the
+  package, but `main.go` embeds `dist/plugin.css`. Fixed by
+  `build.lib.cssFileName`, which also keeps the name stable if the package is
+  ever renamed.
+- **Version lives in three files.** `main.go`, `frontend/package.json` and
+  `frontend/src/index.ts` must agree; `build.sh` fails the build if they don't.
+- **Installs are pinned.** `package-lock.json` is committed and `build.sh` runs
+  `npm ci`, so a commit always builds against the same versions. Since
+  `frontend/node_modules` is bind-mounted, a build also resets your local install
+  to match the lockfile.
+- **TypeScript is held at 6.x** because `vue-tsc` can't run on TS 7 - see below.
+
+### Why TypeScript is held at 6.x
+
+TS 7 is the native (Go) compiler, and the legacy in-process JS API
+(`lib/typescript.js`, `ts.createProgram`) is gone; the package's main export is
+just `lib/version.cjs` beside a platform binary. A replacement API does exist at
+`typescript/unstable/*` - JSON-RPC to that binary, with Program/Checker/Emitter,
+diagnostics, completions and virtual-filesystem callbacks - but it stays
+`unstable` until TS 7.1 (~Oct 2026).
+
+`vue-tsc` hasn't migrated: it still resolves `typescript/lib/tsc` and dies with
+`ERR_PACKAGE_PATH_NOT_EXPORTED`. Template typechecking is broken on 7.0 for Vue,
+Svelte and Astro alike, and Microsoft's guidance for anyone using the compiler
+API is to pin to v6. TS 6.0.3 is the last JS-based release.
+
+Worth knowing either way: `vue-tsc` is the only thing here that invokes
+TypeScript at all - Vite and Vitest transpile with esbuild - so TS 7's speedup
+wouldn't touch the build. Revisit at 7.1.
 
 ## Config paths & caveats
 
