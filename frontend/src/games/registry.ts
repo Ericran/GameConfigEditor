@@ -12,7 +12,8 @@ import { palworldFormat } from '../formats/palworld';
 import { keyvalueFormat, makeKeyValueFormat } from '../formats/keyvalue';
 import { makeIniFormat } from '../formats/ini';
 import { jsonFormat } from '../formats/json';
-import { sampFormat } from '../formats/convar';
+import { sampFormat, makeConvarFormat } from '../formats/convar';
+import { propertyXmlFormat, elementXmlFormat } from '../formats/xml';
 import { palworldSchema } from './schemas/palworld';
 import { minecraftSchema } from './schemas/minecraft';
 import { arkGameUserSettingsSchema, arkGameIniSchema } from './schemas/ark';
@@ -20,9 +21,14 @@ import { pzSchema } from './schemas/pz';
 import { vrisingHostSchema } from './schemas/vrising';
 import { ts3Schema } from './schemas/teamspeak';
 import { sampSchema } from './schemas/samp';
+import { theForestSchema } from './schemas/theforest';
+import { rokSchema } from './schemas/rok';
+import { sdtdSchema } from './schemas/sdtd';
+import { mtaSchema } from './schemas/mta';
 import { sourceGames } from './source';
 import { goldSourceGames } from './goldsource';
 import { idTechGames } from './idtech';
+import { armaGames } from './arma';
 
 // ARK/Unreal INI keys are case-insensitive - match them that way so a schema
 // field and a differently-cased file key don't produce a duplicate.
@@ -31,6 +37,37 @@ const arkIni = makeIniFormat('ark-ini', { caseInsensitive: true });
 // TeamSpeak's ini is flat key=value like server.properties, but its booleans are
 // 1/0 rather than true/false.
 const ts3Ini = makeKeyValueFormat('ts3-ini', { codec: { boolTrue: '1', boolFalse: '0' } });
+
+// The Forest writes bare `key value` lines with on/off booleans.
+const forestCfg = makeConvarFormat('theforest', {
+    codec: {
+        boolTrue: 'on',
+        boolFalse: 'off',
+        isTruthy: (r) => r.trim().toLowerCase() === 'on',
+        quoteText: (v) => v,
+        unquoteText: (r) => r,
+    },
+});
+
+// Hurtworld's autoexec.cfg is a list of console commands, values unquoted.
+const hurtworldCfg = makeConvarFormat('hurtworld', {
+    codec: { quoteText: (v) => v, unquoteText: (r) => r },
+});
+
+// Reign Of Kings quotes every value in single quotes and spells booleans True/False.
+const rokCfg = makeKeyValueFormat('rok-cfg', {
+    codec: {
+        boolTrue: "'True'",
+        boolFalse: "'False'",
+        isTruthy: (r) => r.trim().replace(/'/g, '').toLowerCase() === 'true',
+        quoteText: (v) => `'${v}'`,
+        unquoteText: (r) => r.trim().replace(/^'([\s\S]*)'$/, '$1'),
+    },
+});
+
+const FOREST_HINT =
+    'The Forest resolves its config relative to the server data directory and -configfilepath can move it, so the ' +
+    'path above is the common default rather than a guarantee.';
 
 // TS3 does not create this file itself - it is only read when the server is
 // started with `inifile=ts3server.ini`, so a default install has none.
@@ -165,9 +202,52 @@ export const games: GameConfig[] = [
         format: sampFormat,
         schema: sampSchema,
     },
+    {
+        gameId: '7d2d',
+        gameName: '7 Days to Die',
+        fileName: 'serverconfig.xml',
+        dir: '',
+        format: propertyXmlFormat,
+        schema: sdtdSchema,
+    },
+    {
+        gameId: 'mta',
+        gameName: 'GTA: Multi Theft Auto',
+        fileName: 'mtaserver.conf',
+        dir: '/mods/deathmatch',
+        format: elementXmlFormat,
+        schema: mtaSchema,
+    },
+    {
+        gameId: 'the-forest',
+        gameName: 'The Forest',
+        fileName: 'Server.cfg',
+        dir: '',
+        format: forestCfg,
+        schema: theForestSchema,
+        loadHint: FOREST_HINT,
+    },
+    {
+        gameId: 'hurtworld',
+        gameName: 'Hurtworld',
+        fileName: 'autoexec.cfg',
+        dir: '',
+        // No schema: only `servername` is well documented, so the generic editor
+        // lists whatever the file actually holds rather than inventing keys.
+        format: hurtworldCfg,
+    },
+    {
+        gameId: 'rok',
+        gameName: 'Reign Of Kings',
+        fileName: 'ServerSettings.cfg',
+        dir: '/Configuration',
+        format: rokCfg,
+        schema: rokSchema,
+    },
     ...sourceGames,
     ...goldSourceGames,
     ...idTechGames,
+    ...armaGames,
 ];
 
 /** Disk-root-relative full path to a game's config file. */

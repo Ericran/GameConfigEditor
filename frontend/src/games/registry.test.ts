@@ -116,6 +116,85 @@ describe('new catalog families', () => {
     });
 });
 
+describe('the remaining built-in games', () => {
+    it('gives 7 Days to Die the attribute-shaped XML editor', () => {
+        const g = resolve('7d2d', 'serverconfig.xml')!;
+        expect(g.format.id).toBe('xml-property');
+        expect(configPath(g)).toBe('/serverconfig.xml'); // -configfile=serverconfig.xml
+        const doc = g.format.parse('<ServerSettings>\n  <property name="ServerName" value="x" />\n</ServerSettings>\n')!;
+        expect(doc.getRaw('ServerName')).toBe('x');
+    });
+
+    it('gives MTA the element-shaped XML editor under mods/deathmatch', () => {
+        const g = resolve('mta', 'mtaserver.conf')!;
+        expect(g.format.id).toBe('xml-element');
+        expect(configPath(g)).toBe('/mods/deathmatch/mtaserver.conf');
+        const doc = g.format.parse('<config>\n  <serverport>22003</serverport>\n</config>\n')!;
+        expect(doc.getRaw('serverport')).toBe('22003');
+    });
+
+    it('gives The Forest on/off booleans and unquoted values', () => {
+        const g = resolve('the-forest', 'Server.cfg')!;
+        expect(g.format.codec.toRaw(true, 'bool')).toBe('on');
+        expect(g.format.codec.toRaw(false, 'bool')).toBe('off');
+        expect(g.format.codec.fromRaw('on', 'bool')).toBe(true);
+        expect(g.format.codec.fromRaw('off', 'bool')).toBe(false);
+        expect(g.format.codec.toRaw('My Forest', 'text')).toBe('My Forest');
+        const doc = g.format.parse('// c\nserverName My Forest\nenableVAC off\n')!;
+        expect(doc.getRaw('serverName')).toBe('My Forest');
+        doc.setRaw('enableVAC', 'on');
+        expect(doc.serialize()).toBe('// c\nserverName My Forest\nenableVAC on\n');
+    });
+
+    it('round-trips a bare Forest key with no value', () => {
+        const g = resolve('the-forest', 'Server.cfg')!;
+        const text = 'serverPassword\nserverPlayers 4\n';
+        const doc = g.format.parse(text)!;
+        expect(doc.serialize()).toBe(text);
+        expect(doc.getRaw('serverPassword')).toBe('');
+    });
+
+    it('gives Reign Of Kings single-quoted values and True/False booleans', () => {
+        const g = resolve('rok', 'ServerSettings.cfg')!;
+        expect(configPath(g)).toBe('/Configuration/ServerSettings.cfg');
+        expect(g.format.codec.toRaw(true, 'bool')).toBe("'True'");
+        expect(g.format.codec.toRaw('My Realm', 'text')).toBe("'My Realm'");
+        expect(g.format.codec.fromRaw("'My Realm'", 'text')).toBe('My Realm');
+        expect(g.format.codec.fromRaw("'True'", 'bool')).toBe(true);
+        expect(g.format.codec.fromRaw("'False'", 'bool')).toBe(false);
+        const text = "# c\nServerName = 'Old'\nMaxPlayers = '32'\n";
+        const doc = g.format.parse(text)!;
+        doc.setRaw('ServerName', "'New'");
+        expect(doc.serialize()).toBe("# c\nServerName = 'New'\nMaxPlayers = '32'\n");
+    });
+
+    it('leaves Hurtworld schema-less rather than inventing keys', () => {
+        const g = resolve('hurtworld', 'autoexec.cfg')!;
+        expect(g.schema).toBeUndefined();
+        const doc = g.format.parse('servername My Server\ncreativemode 0\n')!;
+        expect(doc.getRaw('servername')).toBe('My Server');
+        expect(g.format.codec.toRaw('My Server', 'text')).toBe('My Server');
+    });
+
+    it('covers all three Arma games with the arma format and a naming hint', () => {
+        for (const id of ['arma2', 'arma2oa', 'arma3']) {
+            const g = resolve(id, 'server.cfg')!;
+            expect(g, id).toBeDefined();
+            expect(g.format.id).toBe('arma');
+            expect(g.loadHint, `${id} should explain the -config naming`).toBeTruthy();
+        }
+        const doc = resolve('arma3', 'server.cfg')!.format.parse('hostname = "x";\nmaxPlayers = 40;\n')!;
+        expect(doc.getRaw('hostname')).toBe('"x"');
+    });
+
+    it('keeps Arma array keys addressable as raw values', () => {
+        const g = resolve('arma3', 'server.cfg')!;
+        const admins = (g.schema ?? []).flatMap((s) => s.fields).find((f) => f.key === 'admins[]');
+        expect(admins).toBeDefined();
+        expect(admins!.type).toBe('raw');
+    });
+});
+
 describe('gamesFor', () => {
     it('returns every config a game registers, in order', () => {
         expect(gamesFor('ark').map((g) => g.fileName)).toEqual(['GameUserSettings.ini', 'Game.ini']);

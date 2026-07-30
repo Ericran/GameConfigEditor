@@ -11,12 +11,27 @@ shared config-format parsers.
 
 ## Supported games
 
-30 of the 41 games in GameAP's built-in catalog, plus three that are added
-manually. `game_id` is the value the plugin matches on (`server.game_id`); the
-server app id is the Steam dedicated-server app from GameAP's own catalog, handy
-when adding a game to the panel.
+38 of the 41 games in GameAP's built-in catalog, plus three added manually.
+`game_id` is what the plugin matches on (`server.game_id`); the server app id is
+the Steam dedicated-server app from GameAP's own catalog, handy when adding a game
+to the panel.
 
-#### Source engine  (12)
+#### Survival & sandbox
+| Game | `game_id` | Server app id | Config path |
+|---|---|---|---|
+| Palworld | `palworld` | - | `/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` |
+| Minecraft | `minecraft` | - | `/server.properties` |
+| ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini` |
+| ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/Game.ini` |
+| Project Zomboid | `projectzomboid` | - | `/Zomboid/Server/servertest.ini` |
+| V Rising | `1604030` | - | `/save-data/Settings/ServerHostSettings.json` |
+| V Rising | `1604030` | - | `/save-data/Settings/ServerGameSettings.json` |
+| 7 Days to Die | `7d2d` | `294420` | `/serverconfig.xml` |
+| The Forest | `the-forest` | `556450` | `/Server.cfg` |
+| Hurtworld | `hurtworld` | `405100` | `/autoexec.cfg` |
+| Reign Of Kings | `rok` | `344760` | `/Configuration/ServerSettings.cfg` |
+
+#### Source engine
 | Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
 | Counter-Strike 2 | `cs2` | `730` | `/game/csgo/cfg/server.cfg` |
@@ -32,7 +47,7 @@ when adding a game to the panel.
 | Black Mesa: Deathmatch | `bms` | `346680` | `/bms/cfg/server.cfg` |
 | Synergy | `synergy` | `17525` | `/synergy/cfg/server.cfg` |
 
-#### GoldSource engine (HLDS)  (10)
+#### GoldSource engine (HLDS)
 | Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
 | Half-Life 1 | `valve` | `90` | `/valve/cfg/server.cfg` |
@@ -46,7 +61,7 @@ when adding a game to the panel.
 | Ricochet | `ricochet` | `90` | `/ricochet/cfg/server.cfg` |
 | Sven Co-op | `svencoop` | `276060` | `/svencoop/cfg/server.cfg` |
 
-#### idTech / set-dialect  (4)
+#### idTech / set-dialect
 | Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
 | Quake 2 | `q2` | - | `/baseq2/server.cfg` |
@@ -54,36 +69,38 @@ when adding a game to the panel.
 | Call of Duty 4 | `cod4` | - | `/main/server.cfg` |
 | FiveM | `fivem` | - | `/server.cfg` |
 
-#### Everything else  (9)
+#### Arma
 | Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
-| Palworld | `palworld` | - | `/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` |
-| Minecraft | `minecraft` | - | `/server.properties` |
-| ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini` |
-| ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/Game.ini` |
-| Project Zomboid | `projectzomboid` | - | `/Zomboid/Server/servertest.ini` |
-| V Rising | `1604030` | - | `/save-data/Settings/ServerHostSettings.json` |
-| V Rising | `1604030` | - | `/save-data/Settings/ServerGameSettings.json` |
+| Arma 3 | `arma3` | `233780` | `/server.cfg` |
+| Arma 2 | `arma2` | `33905` | `/server.cfg` |
+| Arma 2: Operation Arrowhead | `arma2oa` | `33935` | `/server.cfg` |
+
+#### Other
+| Game | `game_id` | Server app id | Config path |
+|---|---|---|---|
 | TeamSpeak 3 | `teamspeak3` | - | `/ts3server.ini` |
 | GTA: San-Andreas Multiplayer | `samp` | - | `/server.cfg` |
+| GTA: Multi Theft Auto | `mta` | - | `/mods/deathmatch/mtaserver.conf` |
 
-Paths for the idTech group are best-effort: those engines resolve `server.cfg`
-relative to their base directory, and `+exec` or an `fs_homepath` override can
-move it. A miss explains itself in the error banner, and the file-manager editor
-still matches `server.cfg` wherever it actually lives.
+Some paths are conventions rather than guarantees: Arma loads whatever `-config`
+names (and nothing if the argument is absent), the idTech engines resolve
+`server.cfg` against their base directory, and The Forest honours
+`-configfilepath`. Those entries say so in the error banner if the file isn't
+there, and the file-manager editor still matches the file wherever it lives.
 
-### Not covered yet
+### Not covered
 
-| Game(s) | What's missing |
+| Game | Why |
 |---|---|
-| 7 Days to Die, GTA: Multi Theft Auto | config is XML (`serverconfig.xml`, `mtaserver.conf`) - needs an XML format |
-| Arma 2, Arma 2: OA, Arma 3 | `server.cfg` uses `key = value;` syntax - needs its own format |
-| Rust, Valheim | settings live in launch arguments; use the **Launch Settings** tab |
-| HurtWorld, Just Cause 2, Reign Of Kings, The Forest | config file and format not yet established |
+| Rust, Valheim | settings are launch arguments, not a file - use the **Launch Settings** tab |
+| Just Cause 2 | `config.lua` is a Lua table; out of scope for the same reason as Project Zomboid's `SandboxVars.lua` |
 
 Any game whose config matches a known format also works via the generic editor
 even without a curated schema - keys are parsed, typed, and grouped by section,
-with a raw-text fallback when a file doesn't parse.
+with a raw-text fallback when a file doesn't parse. Hurtworld is registered that
+way on purpose: only `servername` is well documented, so the editor lists what
+the file actually holds rather than inventing keys.
 
 > **Manual-add games:** Palworld, Project Zomboid and V Rising aren't in GameAP's
 > catalog - they're added by hand, so their `game_id` is whatever your panel uses.
@@ -111,13 +128,18 @@ src/
     palworld.ts       OptionSettings=(...) one-liner
     keyvalue.ts       flat key=value (Minecraft, PZ, Terraria)
     ini.ts            multi-section INI, optional case-insensitivity (ARK)
-    convar.ts         Source/GoldSource server.cfg convars
+    convar.ts         console convars (Source/GoldSource/idTech, SA-MP variant)
     json.ts           JSON object, dotted paths (V Rising)
+    xml.ts            XML, attribute- or element-valued (7d2d, MTA)
+    arma.ts           Arma `key = value;` with quoted strings and arrays
     *.test.ts         round-trip / fidelity tests
   games/
     registry.ts       game_id -> { file, dir, format, schema?, guardrails }
-    source.ts         all Source-family entries (shared convar schema)
-    fields.ts         terse schema field constructors (n/b/t/sel, section())
+    source.ts         Source-engine entries (shared convar schema)
+    goldsource.ts     GoldSource/HLDS entries (own schema, no Source-only cvars)
+    idtech.ts         Quake 2/3, CoD4, FiveM (set/seta dialect)
+    arma.ts           Arma 2 / 2 OA / 3
+    fields.ts         terse schema field constructors (n/b/t/raw/sel, section())
     schemas/          curated per-game field schemas
   composables/
     useConfigForm.ts  ConfigDoc + Schema -> grouped fields & writable models

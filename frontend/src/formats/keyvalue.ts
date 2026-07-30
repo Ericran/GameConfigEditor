@@ -12,6 +12,13 @@ import { makeCodec, type CodecOptions } from './shared';
 
 const COMMENT = /^\s*[#!;]/;
 const KV = /^\s*([^=\s][^=]*?)\s*=(.*)$/;
+/**
+ * Splits an entry into everything up to and including `=` (plus any padding
+ * after it) and the value. Editing rewrites only the second half, so a file
+ * written `ServerName = 'x'` keeps its spacing instead of collapsing to
+ * `ServerName='x'` - which matters for parsers that are strict about it.
+ */
+const SPLIT = /^([^=]*=[ \t]*)([\s\S]*)$/;
 
 export interface KeyValueOptions {
     /** Codec overrides - e.g. Minecraft/Terraria use lowercase true/false. */
@@ -53,7 +60,7 @@ export function makeKeyValueFormat(id: string, opts: KeyValueOptions = {}): Form
             getRaw: (a) => {
                 const i = idx[a];
                 if (i === undefined) return undefined;
-                const m = lines[i].text.match(KV);
+                const m = lines[i].text.match(SPLIT);
                 return m ? m[2] : undefined;
             },
             setRaw: (a, val) => {
@@ -62,7 +69,10 @@ export function makeKeyValueFormat(id: string, opts: KeyValueOptions = {}): Form
                     order.push(a);
                     idx[a] = lines.push({ text: `${a}=${val}`, key: a }) - 1;
                 } else {
-                    lines[i] = { text: `${a}=${val}`, key: a };
+                    // Keep the line's own prefix (indentation, key spelling, and
+                    // the padding around `=`); replace only the value.
+                    const m = lines[i].text.match(SPLIT);
+                    lines[i] = { text: (m ? m[1] : `${a}=`) + val, key: a };
                 }
             },
             remove: (a) => {

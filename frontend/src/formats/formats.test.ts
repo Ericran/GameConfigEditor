@@ -381,17 +381,24 @@ describe('keyvalue', () => {
         expect(upper.codec.fromRaw('True', 'bool')).toBe(true);
     });
 
-    /**
-     * Known normalisation: unlike the INI format, an edited key's line is
-     * rebuilt as `key=value`, so surrounding whitespace is dropped. Harmless for
-     * the java-properties files this format targets (which never indent), but
-     * recorded here so a change in either direction is deliberate.
-     */
-    it('normalises whitespace around an edited key', () => {
+    it('preserves indentation and the padding around = when editing', () => {
         const doc = keyvalueFormat.parse('  spaced-key = value\nother=1\n')!;
-        expect(doc.getRaw('spaced-key')).toBe(' value');
+        // The value is exposed without the padding, so codecs see a clean value.
+        expect(doc.getRaw('spaced-key')).toBe('value');
         doc.setRaw('spaced-key', 'x');
-        expect(doc.serialize()).toBe('spaced-key=x\nother=1\n');
+        expect(doc.serialize()).toBe('  spaced-key = x\nother=1\n');
+        // A key with no padding stays that way.
+        doc.setRaw('other', '2');
+        expect(doc.serialize()).toBe('  spaced-key = x\nother=2\n');
+    });
+
+    it('handles single-quoted values with padding (Reign Of Kings style)', () => {
+        const text = "# comment\nServerName = 'My Realm'\nMaxPlayers = '32'\n";
+        const doc = keyvalueFormat.parse(text)!;
+        expect(doc.serialize()).toBe(text);
+        expect(doc.getRaw('ServerName')).toBe("'My Realm'");
+        doc.setRaw('ServerName', "'Other Realm'");
+        expect(doc.serialize()).toBe("# comment\nServerName = 'Other Realm'\nMaxPlayers = '32'\n");
     });
 });
 

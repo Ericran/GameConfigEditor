@@ -5,6 +5,8 @@ import { addr } from '../formats/shared';
 export const n = (key: string, label: string): FieldDef => ({ key, label, type: 'number' });
 export const b = (key: string, label: string): FieldDef => ({ key, label, type: 'bool' });
 export const t = (key: string, label: string): FieldDef => ({ key, label, type: 'text' });
+/** Edited verbatim, no quoting or coercion - for values we deliberately don't model (Arma's `admins[] = {..}`). */
+export const raw = (key: string, label: string): FieldDef => ({ key, label, type: 'raw' });
 export const sel = (key: string, label: string, options: string[]): FieldDef => ({
     key,
     label,
