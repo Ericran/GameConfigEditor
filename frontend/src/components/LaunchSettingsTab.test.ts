@@ -1,0 +1,105 @@
+// @vitest-environment jsdom
+import { flushPromises, mount } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import axios from 'axios';
+import LaunchSettingsTab from './LaunchSettingsTab.vue';
+
+vi.mock('axios', () => ({
+    default: { get: vi.fn(), put: vi.fn() },
+}));
+
+function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
+
+function mountTab() {
+    return mount(LaunchSettingsTab, {
+        props: {
+            serverId: 42,
+            server: { id: 42, game_id: 'valheim' },
+        } as any,
+        global: {
+            stubs: {
+                Banner: { template: '<div><slot/><slot name="action"/></div>' },
+                FieldInput: {
+                    name: 'FieldInput',
+                    props: ['modelValue', 'type', 'disabled'],
+                    emits: ['update:modelValue'],
+                    template: '<div data-test="field">{{ String(modelValue) }}:{{ type }}</div>',
+                },
+            },
+        },
+    });
+}
+
+describe('LaunchSettingsTab', () => {
+    beforeEach(() => {
+        vi.mocked(axios.get).mockReset();
+        vi.mocked(axios.put).mockReset();
+    });
+
+    it('normalizes string boolean values before binding checkboxes', async () => {
+        vi.mocked(axios.get).mockResolvedValue({
+            data: [{ name: 'public', value: '1', type: 'boolean' }],
+        });
+        const wrapper = mountTab();
+        await flushPromises();
+
+        expect(wrapper.get('[data-test="field"]').text()).toBe('true:bool');
+    });
+
+    it('does not mark edits made while a save is in flight as saved', async () => {
+        vi.mocked(axios.get).mockResolvedValue({
+            data: [{ name: 'world', value: 'before', type: 'string' }],
+        });
+        const request = deferred<unknown>();
+        vi.mocked(axios.put).mockReturnValue(request.promise as any);
+        const wrapper = mountTab();
+        await flushPromises();
+
+        const field = wrapper.getComponent({ name: 'FieldInput' });
+        field.vm.$emit('update:modelValue', 'first edit');
+        await wrapper.vm.$nextTick();
+        await wrapper.get('button').trigger('click');
+        field.vm.$emit('update:modelValue', 'newer edit');
+        await wrapper.vm.$nextTick();
+
+        request.resolve({});
+        await flushPromises();
+
+        expect(axios.put).toHaveBeenCalledWith('/api/servers/42/settings', [
+            { name: 'world', value: 'first edit' },
+        ]);
+        expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
+    });
+
+    it('retries a failed save instead of reloading and discarding the draft', async () => {
+        vi.mocked(axios.get).mockResolvedValue({
+            data: [{ name: 'world', value: 'before', type: 'string' }],
+        });
+        vi.mocked(axios.put).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({});
+        const wrapper = mountTab();
+        await flushPromises();
+
+        wrapper.getComponent({ name: 'FieldInput' }).vm.$emit('update:modelValue', 'draft');
+        await wrapper.vm.$nextTick();
+        await wrapper.get('button').trigger('click');
+        await flushPromises();
+        wrapper.getComponent({ name: 'FieldInput' }).vm.$emit('update:modelValue', 'newer draft');
+        await wrapper.vm.$nextTick();
+        const retry = wrapper.findAll('button').find((button) => button.text() === 'Retry');
+        expect(retry).toBeTruthy();
+        await retry!.trigger('click');
+        await flushPromises();
+
+        expect(axios.get).toHaveBeenCalledTimes(1);
+        expect(axios.put).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(axios.put).mock.calls[1][1]).toEqual([{ name: 'world', value: 'newer draft' }]);
+    });
+});

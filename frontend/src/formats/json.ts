@@ -22,6 +22,30 @@ type J = any;
 const isPlainObject = (v: J): v is Record<string, J> =>
     v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/** Dotted addresses stay readable while escaping literal dots/backslashes in keys. */
+const escapeSegment = (segment: string): string => segment.replace(/\\/g, '\\\\').replace(/\./g, '\\.');
+function splitAddress(address: string): string[] {
+    const parts: string[] = [];
+    let part = '';
+    let escaped = false;
+    for (const c of address) {
+        if (escaped) {
+            part += c;
+            escaped = false;
+        } else if (c === '\\') {
+            escaped = true;
+        } else if (c === '.') {
+            parts.push(part);
+            part = '';
+        } else {
+            part += c;
+        }
+    }
+    if (escaped) part += '\\';
+    parts.push(part);
+    return parts;
+}
+
 /** Indentation of the first indented line (tab or N spaces); 4 spaces if none. */
 function detectIndent(text: string): string {
     const m = text.match(/\n([ \t]+)\S/);
@@ -39,20 +63,20 @@ function rawOf(v: J): string {
 }
 
 /** Coerce a raw string back to the JSON type of the value it replaces. */
-function coerce(raw: string, existing: J): J {
-    if (typeof existing === 'boolean') return raw.trim().toLowerCase() === 'true';
+function coerce(raw: string, existing: J): { ok: boolean; value: J } {
+    if (typeof existing === 'boolean') return { ok: true, value: raw.trim().toLowerCase() === 'true' };
     if (typeof existing === 'number') {
         const n = Number(raw);
-        return Number.isNaN(n) ? raw : n;
+        return { ok: Number.isFinite(n), value: Number.isFinite(n) ? n : existing };
     }
     if (Array.isArray(existing) || isPlainObject(existing)) {
         try {
-            return JSON.parse(raw);
+            return { ok: true, value: JSON.parse(raw) };
         } catch {
-            return existing; // keep the old value rather than corrupt the file
+            return { ok: false, value: existing };
         }
     }
-    return raw; // string / null / brand-new key
+    return { ok: true, value: raw }; // string / null / brand-new key
 }
 
 export function makeJsonFormat(id: string): Format {
@@ -72,7 +96,7 @@ export function makeJsonFormat(id: string): Format {
 
         /** Resolve an address to [parentObject, lastKey], or undefined if the path is broken. */
         const locate = (address: string): [Record<string, J>, string] | undefined => {
-            const parts = address.split('.');
+            const parts = splitAddress(address);
             let node: J = root;
             for (let i = 0; i < parts.length - 1; i++) {
                 if (!isPlainObject(node) || !(parts[i] in node)) return undefined;
@@ -85,7 +109,7 @@ export function makeJsonFormat(id: string): Format {
             const out: string[] = [];
             const walk = (obj: Record<string, J>, prefix: string) => {
                 for (const k of Object.keys(obj)) {
-                    const path = prefix ? `${prefix}.${k}` : k;
+                    const path = prefix ? `${prefix}.${escapeSegment(k)}` : escapeSegment(k);
                     if (isPlainObject(obj[k])) walk(obj[k], path);
                     else out.push(path);
                 }
@@ -106,20 +130,23 @@ export function makeJsonFormat(id: string): Format {
             },
             setRaw: (a, val) => {
                 const loc = locate(a);
-                if (!loc) return; // won't invent missing nested parents
-                loc[0][loc[1]] = coerce(val, loc[0][loc[1]]);
+                if (!loc) return false; // won't invent missing nested parents
+                const result = coerce(val, loc[0][loc[1]]);
+                if (!result.ok) return false;
+                loc[0][loc[1]] = result.value;
+                return true;
             },
             remove: (a) => {
                 const loc = locate(a);
                 if (loc && loc[1] in loc[0]) delete loc[0][loc[1]];
             },
             sectionOf: (a) => {
-                const i = a.lastIndexOf('.');
-                return i === -1 ? '' : a.slice(0, i);
+                const parts = splitAddress(a);
+                return parts.length <= 1 ? '' : parts.slice(0, -1).map(escapeSegment).join('.');
             },
             labelOf: (a) => {
-                const i = a.lastIndexOf('.');
-                return i === -1 ? a : a.slice(i + 1);
+                const parts = splitAddress(a);
+                return parts[parts.length - 1] ?? a;
             },
             serialize: () => JSON.stringify(root, null, indent) + trailing,
         };

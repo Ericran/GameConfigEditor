@@ -18,15 +18,16 @@ const codec = makeCodec({
     unquoteText: unquoteDouble,
 });
 
-/** Split a comma list at top level only - respects nested parens and quotes. */
+/** Split a comma list at top level only - respects nested parens and escaped quotes. */
 function splitTopLevel(s: string): string[] {
     const out: string[] = [];
     let depth = 0;
     let inQ = false;
     let cur = '';
+    let escaped = false;
     for (let i = 0; i < s.length; i++) {
         const c = s[i];
-        if (c === '"') {
+        if (c === '"' && !escaped) {
             inQ = !inQ;
             cur += c;
             continue;
@@ -37,10 +38,13 @@ function splitTopLevel(s: string): string[] {
             else if (c === ',' && depth === 0) {
                 out.push(cur);
                 cur = '';
+                escaped = false;
                 continue;
             }
         }
         cur += c;
+        escaped = c === '\\' && !escaped;
+        if (c !== '\\') escaped = false;
     }
     if (cur.length) out.push(cur);
     return out;
@@ -57,34 +61,58 @@ function parse(text: string): ConfigDoc | null {
     const after = text.slice(close); // keeps the closing ')' + any trailing newline
     const inner = text.slice(open, close);
 
-    const values: Record<string, string> = {};
-    const order: string[] = [];
-    for (const part of splitTopLevel(inner)) {
-        const eq = part.indexOf('=');
-        if (eq === -1) continue;
-        const k = part.slice(0, eq).trim();
-        const v = part.slice(eq + 1);
-        if (!(k in values)) order.push(k);
-        values[k] = v;
+    interface Token {
+        raw: string;
+        key?: string;
     }
+    const tokens: Token[] = splitTopLevel(inner).map((raw) => {
+        const eq = raw.indexOf('=');
+        if (eq === -1) return { raw };
+        const key = raw.slice(0, eq).trim();
+        return key ? { raw, key } : { raw };
+    });
+    const idx: Record<string, number> = {};
+    const order: string[] = [];
+    const reindex = () => {
+        for (const k of Object.keys(idx)) delete idx[k];
+        order.length = 0;
+        tokens.forEach((token, i) => {
+            if (!token.key) return;
+            if (!(token.key in idx)) order.push(token.key);
+            idx[token.key] = i; // the game's live value is the last occurrence
+        });
+    };
+    reindex();
 
     return {
         keys: () => order,
-        has: (a) => a in values,
-        getRaw: (a) => values[a],
+        has: (a) => a in idx,
+        getRaw: (a) => {
+            const i = idx[a];
+            if (i === undefined) return undefined;
+            const eq = tokens[i].raw.indexOf('=');
+            return eq === -1 ? undefined : tokens[i].raw.slice(eq + 1);
+        },
         setRaw: (a, val) => {
-            if (!(a in values)) order.push(a);
-            values[a] = val;
+            const i = idx[a];
+            if (i === undefined) {
+                tokens.push({ raw: `${a}=${val}`, key: a });
+            } else {
+                const eq = tokens[i].raw.indexOf('=');
+                tokens[i].raw = (eq === -1 ? `${a}=` : tokens[i].raw.slice(0, eq + 1)) + val;
+            }
+            reindex();
+            return true;
         },
         remove: (a) => {
-            if (!(a in values)) return;
-            delete values[a];
-            const i = order.indexOf(a);
-            if (i >= 0) order.splice(i, 1);
+            for (let i = tokens.length - 1; i >= 0; i--) {
+                if (tokens[i].key === a) tokens.splice(i, 1);
+            }
+            reindex();
         },
         sectionOf: () => '',
         labelOf: (a) => a,
-        serialize: () => before + order.map((k) => `${k}=${values[k]}`).join(',') + after,
+        serialize: () => before + tokens.map((token) => token.raw).join(',') + after,
     };
 }
 

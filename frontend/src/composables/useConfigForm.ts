@@ -55,6 +55,7 @@ export function useConfigForm(doc: ConfigDoc, schema: Schema, codec: Codec) {
     // read it to re-run.
     const rev = ref(0);
     const dirty = ref(false);
+    const writeError = ref<string | null>(null);
 
     /** Record a mutation made directly on the doc (e.g. a guardrail clearing keys). */
     function touch() {
@@ -85,12 +86,17 @@ export function useConfigForm(doc: ConfigDoc, schema: Schema, codec: Codec) {
                     return codec.fromRaw(doc.getRaw(f.key), f.type);
                 },
                 set: (v: ConfigValue) => {
-                    doc.setRaw(f.key, codec.toRaw(v, f.type));
+                    const applied = doc.setRaw(f.key, codec.toRaw(v, f.type));
+                    if (!applied) {
+                        writeError.value = `Could not safely write ${f.label} (${f.key}); the value or document structure is invalid.`;
+                        return;
+                    }
+                    writeError.value = null;
                     touch();
                 },
             });
         }
     }
 
-    return { groups, models, dirty, touch, raw };
+    return { groups, models, dirty, writeError, touch, raw };
 }

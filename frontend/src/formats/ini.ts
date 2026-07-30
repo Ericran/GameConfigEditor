@@ -98,7 +98,7 @@ export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
                     const eq = lines[i].text.indexOf('=');
                     lines[i] = { text: (eq >= 0 ? lines[i].text.slice(0, eq + 1) : `${addrKey(a)}=`) + val };
                     reindex();
-                    return;
+                    return true;
                 }
                 const section = addrSection(a);
                 const line: Line = { text: `${addrKey(a)}=${val}` };
@@ -111,6 +111,7 @@ export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
                     lines.push({ text: `[${section}]` }, line);
                 }
                 reindex();
+                return true;
             },
             remove: (a) => {
                 const i = idx[norm(a)];

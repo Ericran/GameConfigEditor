@@ -190,11 +190,29 @@ describe('palworld', () => {
         expect(doc.serialize()).toBe(text);
     });
 
+    it('does not split commas after backslash-escaped quotes inside a string', () => {
+        const text = 'OptionSettings=(ServerName="Bob \\"Best, Ever\\" Server",MaxPlayers=32)';
+        const doc = palworldFormat.parse(text)!;
+        expect(doc.keys()).toEqual(['ServerName', 'MaxPlayers']);
+        expect(doc.getRaw('ServerName')).toBe('"Bob \\"Best, Ever\\" Server"');
+        expect(doc.serialize()).toBe(text);
+    });
+
     it('does not split a comma inside nested parens', () => {
         const text = 'OptionSettings=(Outer=(a=1,b=2),MaxPlayers=32)';
         const doc = palworldFormat.parse(text)!;
         expect(doc.keys()).toEqual(['Outer', 'MaxPlayers']);
         expect(doc.getRaw('Outer')).toBe('(a=1,b=2)');
+    });
+
+    it('preserves malformed fragments and duplicate keys, editing only the live last occurrence', () => {
+        const text = 'OptionSettings=(A=1,broken-fragment,B=2,A=3)';
+        const doc = palworldFormat.parse(text)!;
+        expect(doc.serialize()).toBe(text);
+        expect(doc.keys()).toEqual(['A', 'B']);
+        expect(doc.getRaw('A')).toBe('3');
+        doc.setRaw('A', '4');
+        expect(doc.serialize()).toBe('OptionSettings=(A=1,broken-fragment,B=2,A=4)');
     });
 
     it('appends a key that was not in the file', () => {
@@ -431,6 +449,24 @@ describe('convar', () => {
         expect(out).toContain('  sv_cheats 1'); // indent kept
     });
 
+    it('preserves an inline comment when editing a convar value', () => {
+        const text = 'sv_cheats 0 // disabled on public servers\nhostname "https://example.test/a//b"\n';
+        const doc = convarFormat.parse(text)!;
+        expect(doc.getRaw('sv_cheats')).toBe('0');
+        expect(doc.getRaw('hostname')).toBe('"https://example.test/a//b"');
+        doc.setRaw('sv_cheats', '1');
+        expect(doc.serialize()).toBe(
+            'sv_cheats 1 // disabled on public servers\nhostname "https://example.test/a//b"\n',
+        );
+    });
+
+    it('round-trips the separator before a comment on a value-less command', () => {
+        const text = 'exec // run the default config\n';
+        const doc = convarFormat.parse(text)!;
+        expect(doc.getRaw('exec')).toBe('');
+        expect(doc.serialize()).toBe(text);
+    });
+
     it('preserves a set/seta keyword and addresses the convar by name', () => {
         const doc = convarFormat.parse(CONVAR)!;
         expect(doc.has('cl_something')).toBe(true);
@@ -488,6 +524,16 @@ describe('json', () => {
         expect(doc.sectionOf('Name')).toBe('');
     });
 
+    it('escapes literal dots and backslashes in JSON property names so addresses cannot collide', () => {
+        const doc = jsonFormat.parse('{"A.B":1,"A":{"B":2},"C\\\\D":3}')!;
+        expect(doc.keys()).toEqual(['A\\.B', 'A.B', 'C\\\\D']);
+        expect(doc.getRaw('A\\.B')).toBe('1');
+        expect(doc.getRaw('A.B')).toBe('2');
+        expect(doc.getRaw('C\\\\D')).toBe('3');
+        doc.setRaw('A\\.B', '9');
+        expect(JSON.parse(doc.serialize())).toEqual({ 'A.B': 9, A: { B: 2 }, 'C\\D': 3 });
+    });
+
     it('keeps a number a number and a boolean a boolean', () => {
         const doc = jsonFormat.parse(VRISING)!;
         doc.setRaw('Port', '7777');
@@ -497,6 +543,13 @@ describe('json', () => {
         expect(parsed.Secure).toBe(false);
         expect(typeof parsed.Port).toBe('number');
         expect(typeof parsed.Secure).toBe('boolean');
+    });
+
+    it('rejects non-finite numbers rather than serializing them as null', () => {
+        const doc = jsonFormat.parse(VRISING)!;
+        expect(doc.setRaw('Port', 'Infinity')).toBe(false);
+        expect(doc.setRaw('Port', '-Infinity')).toBe(false);
+        expect(JSON.parse(doc.serialize()).Port).toBe(9876);
     });
 
     it('exposes an array leaf as a JSON string and writes it back as an array', () => {

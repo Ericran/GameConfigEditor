@@ -148,8 +148,9 @@ export function makeXmlFormat(id: string, opts: XmlOptions): Format {
                 // Deliberately does not invent new entries: where a new node
                 // belongs in an XML tree is not something a line model can know,
                 // and guessing would risk writing it outside the root element.
-                if (i === undefined) return;
+                if (i === undefined) return false;
                 lines[i] = withValue(lines[i], val);
+                return true;
             },
             remove: (a) => {
                 const i = idx[a];

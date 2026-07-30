@@ -74,6 +74,7 @@ export function makeKeyValueFormat(id: string, opts: KeyValueOptions = {}): Form
                     const m = lines[i].text.match(SPLIT);
                     lines[i] = { text: (m ? m[1] : `${a}=`) + val, key: a };
                 }
+                return true;
             },
             remove: (a) => {
                 const i = idx[a];

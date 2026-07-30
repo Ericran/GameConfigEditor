@@ -35,7 +35,7 @@ describe('arma', () => {
         expect(doc.serialize()).toBe(ARMA);
     });
 
-    it('addresses top-level assignments, keeping [] as part of array keys', () => {
+    it('addresses only top-level assignments, keeping [] as part of array keys', () => {
         const doc = armaFormat.parse(ARMA)!;
         expect(doc.keys()).toEqual([
             'hostname',
@@ -47,10 +47,9 @@ describe('arma', () => {
             'admins[]',
             'motd[]',
             'kickDuplicate',
-            // indented assignments inside class blocks are still assignments
-            'template',
-            'difficulty',
         ]);
+        expect(doc.has('template')).toBe(false);
+        expect(doc.has('difficulty')).toBe(false);
     });
 
     it('reads values without the trailing semicolon', () => {
@@ -62,10 +61,12 @@ describe('arma', () => {
         expect(doc.getRaw('missing')).toBeUndefined();
     });
 
-    it('unquotes strings and writes 1/0 booleans', () => {
+    it('unquotes strings with Arma doubled-quote escaping and writes 1/0 booleans', () => {
         const { codec } = armaFormat;
         expect(codec.fromRaw('"My Arma Server"', 'text')).toBe('My Arma Server');
         expect(codec.toRaw('New Name', 'text')).toBe('"New Name"');
+        expect(codec.toRaw('Bob "Best" Server', 'text')).toBe('"Bob ""Best"" Server"');
+        expect(codec.fromRaw('"Bob ""Best"" Server"', 'text')).toBe('Bob "Best" Server');
         expect(codec.toRaw(true, 'bool')).toBe('1');
         expect(codec.toRaw(false, 'bool')).toBe('0');
         expect(codec.fromRaw('1', 'bool')).toBe(true);
@@ -88,16 +89,28 @@ describe('arma', () => {
         expect(doc.serialize()).toContain('kickDuplicate = 0;   // no duplicate ids');
     });
 
-    it('leaves class blocks structurally intact when editing inside them', () => {
+    it('leaves class-block assignments structurally intact and unaddressable', () => {
         const doc = armaFormat.parse(ARMA)!;
-        doc.setRaw('template', '"Other.Altis"');
-        const out = doc.serialize();
-        expect(out).toContain('        template = "Other.Altis";');
-        expect(out).toContain('class Missions');
-        expect(out).toContain('    class Mission1');
-        // braces survive untouched
-        expect(out.split('\n').filter((l) => l.trim() === '{')).toHaveLength(2);
-        expect(out.split('\n').filter((l) => l.trim() === '};')).toHaveLength(2);
+        expect(doc.getRaw('template')).toBeUndefined();
+        expect(doc.getRaw('difficulty')).toBeUndefined();
+        expect(doc.serialize()).toBe(ARMA);
+    });
+
+    it('ignores braces inside single-line and multi-line block comments', () => {
+        const text = [
+            '/* { a misleading block opener */',
+            'hostname = "Visible";',
+            '/*',
+            '  } another misleading brace',
+            '  { and another',
+            '*/',
+            'maxPlayers = 40;',
+            'persistent = 1; /* } */',
+            '',
+        ].join('\n');
+        const doc = armaFormat.parse(text)!;
+        expect(doc.keys()).toEqual(['hostname', 'maxPlayers', 'persistent']);
+        expect(doc.serialize()).toBe(text);
     });
 
     it('treats an array as raw text rather than trying to model a list', () => {

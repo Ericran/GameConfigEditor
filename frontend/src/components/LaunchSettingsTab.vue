@@ -51,6 +51,9 @@ const unsupported = ref(false);
 const defs = ref<SettingDef[]>([]);
 const values = reactive<Record<string, ConfigValue>>({});
 const dirty = ref(false);
+const revision = ref(0);
+let loadGeneration = 0;
+let failedAction: 'load' | 'save' = 'load';
 
 // Map GameAP's declared var type to an input kind.
 function kindOf(def: SettingDef): FType {
@@ -60,42 +63,77 @@ function kindOf(def: SettingDef): FType {
     return 'text';
 }
 
+function normalizedValue(def: SettingDef): ConfigValue {
+    const kind = kindOf(def);
+    if (kind === 'bool') {
+        if (typeof def.value === 'boolean') return def.value;
+        if (typeof def.value === 'number') return def.value !== 0;
+        return ['1', 'true', 'yes', 'on'].includes(String(def.value ?? '').trim().toLowerCase());
+    }
+    if (kind === 'number') {
+        const n = Number(def.value);
+        return Number.isFinite(n) ? n : String(def.value ?? '');
+    }
+    return String(def.value ?? '');
+}
+
 async function load() {
+    const generation = ++loadGeneration;
+    failedAction = 'load';
     reset();
     unsupported.value = false;
     loading.value = true;
+    // Never leave a stale form editable beneath a refresh error.
+    defs.value = [];
+    for (const name of Object.keys(values)) delete values[name];
+    dirty.value = false;
     try {
         const resp = await axios.get(`${base}/settings`);
+        if (generation !== loadGeneration) return;
         const list: SettingDef[] = Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? []);
         defs.value = list;
-        for (const d of list) values[d.name] = d.value;
-        dirty.value = false;
+        for (const d of list) values[d.name] = normalizedValue(d);
+        revision.value++;
     } catch (e: any) {
+        if (generation !== loadGeneration) return;
         // 404/405 -> this panel version doesn't expose the settings API.
         if (e?.response && [404, 405, 501].includes(e.response.status)) unsupported.value = true;
         else error.value = errMsg(e, 'Failed to load launch settings');
     } finally {
-        loading.value = false;
+        if (generation === loadGeneration) loading.value = false;
     }
 }
 
-async function save() {
+async function performSave(payload: Array<{ name: string; value: ConfigValue }>, savedRevision: number) {
+    if (saving.value) return;
     saving.value = true;
     reset();
     try {
-        const payload = defs.value.map((d) => ({ name: d.name, value: values[d.name] }));
         await axios.put(`${base}/settings`, payload);
         notice.value = 'Saved. Restart the server for launch changes to take effect.';
-        dirty.value = false;
+        if (revision.value === savedRevision) dirty.value = false;
     } catch (e: any) {
+        failedAction = 'save';
         error.value = errMsg(e, 'Failed to save launch settings');
     } finally {
         saving.value = false;
     }
 }
 
+function save() {
+    if (saving.value) return;
+    const payload = defs.value.map((d) => ({ name: d.name, value: values[d.name] }));
+    void performSave(payload, revision.value);
+}
+
+function retry() {
+    if (failedAction === 'save') save();
+    else void load();
+}
+
 function update(name: string, v: ConfigValue) {
     values[name] = v;
+    revision.value++;
     dirty.value = true;
 }
 
@@ -111,7 +149,7 @@ load();
             <template #action>
                 <button
                     class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                    @click="load"
+                    @click="retry"
                 >
                     Retry
                 </button>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { ComputedRef } from 'vue';
 import type { FileEditorProps, ServerData } from '@gameap/plugin-sdk';
 import { useServer } from '@gameap/plugin-sdk';
@@ -22,8 +22,8 @@ import { resolve, type GameConfig } from '../games/registry';
  * editor resolves it from the server's game code + the file name instead.
  * Building the form itself lives in useConfigForm.
  */
-const props = defineProps<FileEditorProps & { embedded?: boolean; game?: GameConfig }>();
-const emit = defineEmits<{ save: [content: string]; close: [] }>();
+const props = defineProps<FileEditorProps & { embedded?: boolean; game?: GameConfig; saving?: boolean }>();
+const emit = defineEmits<{ save: [content: string]; close: []; 'dirty-change': [dirty: boolean] }>();
 
 // ---- server context (best-effort) ----
 // useServer() throws when this is mounted outside a plugin host context, so
@@ -59,10 +59,12 @@ const parseFailed = !doc;
 const form = doc && codec ? useConfigForm(doc, game?.schema ?? [], codec) : null;
 const groups = computed(() => form?.groups.value ?? []);
 const models = form?.models ?? {};
+const writeError = computed(() => form?.writeError.value ?? null);
 
 // The raw-text fallback tracks its own edits; otherwise the form owns `dirty`.
 const rawDirty = ref(false);
 const dirty = computed(() => form?.dirty.value ?? rawDirty.value);
+watch(dirty, (value) => emit('dirty-change', value));
 
 // ---- relay guardrail (generic; e.g. Palworld PublicIP behind a WireGuard relay) ----
 const relayIpSet = computed(() => {
@@ -71,18 +73,22 @@ const relayIpSet = computed(() => {
     return typeof v === 'string' && v.trim().length > 0;
 });
 function clearRelay() {
-    if (!game?.relayGuard || !doc || !codec || !form) return;
+    if (props.saving || !game?.relayGuard || !doc || !form) return;
     const { ipKey, portKey } = game.relayGuard;
-    if (doc.has(ipKey)) doc.setRaw(ipKey, codec.toRaw('', 'text'));
-    if (portKey && doc.has(portKey)) doc.setRaw(portKey, '');
+    // Removing the keys lets the game apply valid defaults. Writing an empty
+    // numeric port (PublicPort=) can make Palworld reject/reset the config.
+    if (doc.has(ipKey)) doc.remove(ipKey);
+    if (portKey && doc.has(portKey)) doc.remove(portKey);
     form.touch();
 }
 
 // ---- actions ----
 function onSave() {
+    if (props.saving) return;
+    // The parent owns persistence. Keep this document dirty until a successful
+    // save causes the parent/host to remount it with the acknowledged content;
+    // otherwise a failed request would disable Save and strand the draft.
     emit('save', doc ? doc.serialize() : rawText.value);
-    if (form) form.dirty.value = false;
-    else rawDirty.value = false;
 }
 function onClose() {
     emit('close');
@@ -121,7 +127,8 @@ const note = game?.note;
             <textarea
                 v-model="rawText"
                 spellcheck="false"
-                class="flex-1 w-full font-mono text-xs p-2 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 outline-none"
+                class="flex-1 w-full font-mono text-xs p-2 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 outline-none disabled:opacity-60"
+                :disabled="saving"
                 @input="rawDirty = true"
             ></textarea>
         </div>
@@ -131,13 +138,19 @@ const note = game?.note;
             <!-- informational note (e.g. CS2 config layering) -->
             <Banner v-if="note" tone="info" icon="fa-solid fa-circle-info">{{ note }}</Banner>
 
+            <!-- structured write failure -->
+            <Banner v-if="writeError" tone="warning" icon="fa-solid fa-triangle-exclamation">
+                {{ writeError }}
+            </Banner>
+
             <!-- relay guardrail -->
             <Banner v-if="relayIpSet" tone="caution" icon="fa-solid fa-shield-halved">
                 A public IP is set. For a WireGuard relay or an unlisted server this advertises your real IP to the
                 community browser. Clear it unless you intend to be publicly listed.
                 <template #action>
                     <button
-                        class="shrink-0 rounded bg-amber-600 px-2 py-1 text-white text-xs hover:bg-amber-700"
+                        :disabled="saving"
+                        class="shrink-0 rounded bg-amber-600 px-2 py-1 text-white text-xs hover:bg-amber-700 disabled:opacity-50"
                         @click="clearRelay"
                     >
                         Clear public IP{{ game?.relayGuard?.portKey ? ' &amp; port' : '' }}
@@ -158,7 +171,12 @@ const note = game?.note;
                         <span class="text-xs text-stone-500 dark:text-stone-400">
                             {{ f.label }} <code class="opacity-60">{{ f.key }}</code>
                         </span>
-                        <FieldInput v-model="models[f.key].value" :type="f.type" :options="f.options" />
+                        <FieldInput
+                            v-model="models[f.key].value"
+                            :type="f.type"
+                            :options="f.options"
+                            :disabled="saving"
+                        />
                     </label>
                 </div>
             </section>
@@ -175,7 +193,7 @@ const note = game?.note;
             </button>
             <button
                 class="rounded bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="!dirty"
+                :disabled="!dirty || saving"
                 @click="onSave"
             >
                 Save

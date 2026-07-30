@@ -24,6 +24,14 @@ echo ">> [1/3] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_TAG})"
 if [ ! -d .sdk/gameap/.git ]; then
   mkdir -p .sdk
   git clone --depth 1 --branch "${SDK_TAG}" https://github.com/gameap/gameap.git .sdk/gameap
+else
+  CURRENT_SDK_TAG=$(git -C .sdk/gameap describe --tags --exact-match HEAD 2>/dev/null || true)
+  if [ "$CURRENT_SDK_TAG" != "$SDK_TAG" ]; then
+    echo ">> SDK checkout is ${CURRENT_SDK_TAG:-untagged}; switching to ${SDK_TAG}"
+    git -C .sdk/gameap reset --hard
+    git -C .sdk/gameap fetch --depth 1 origin "refs/tags/${SDK_TAG}:refs/tags/${SDK_TAG}"
+    git -C .sdk/gameap checkout --detach "${SDK_TAG}"
+  fi
 fi
 
 # The guest only needs the message types from pkg/proto, but that package also
@@ -57,7 +65,7 @@ docker run --rm -u "$U" \
   -e GOMODCACHE=/src/.cache/gomod \
   -e GOPATH=/src/.cache/gopath \
   -v "$PWD:/src" -w /src "${TINYGO_IMAGE}" \
-  sh -c "go mod tidy && tinygo build -o '${OUT}' -target=wasip1 -buildmode=c-shared -scheduler=none ."
+  sh -c "go mod download && tinygo build -o '${OUT}' -target=wasip1 -buildmode=c-shared -scheduler=none ."
 
 echo ">> Done: ${OUT}"
 echo ">> Install it via the GameAP panel: Administration -> Plugins -> Upload -> ${OUT}"

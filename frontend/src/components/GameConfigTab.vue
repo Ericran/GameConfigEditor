@@ -30,6 +30,9 @@ const { loading, saving, error, notice, reset } = useAsyncPanel();
 const showLoadHint = ref(false);
 const content = ref<string | null>(null);
 const reloadKey = ref(0);
+const editorDirty = ref(false);
+const failureKind = ref<'load' | 'save' | 'conflict'>('load');
+let loadGeneration = 0;
 
 const base = `/api/file-manager/${props.serverId}`;
 
@@ -42,6 +45,8 @@ function extOf(fileName: string): string {
 async function load() {
     const cfg = selected.value;
     if (!cfg) return;
+    const generation = ++loadGeneration;
+    failureKind.value = 'load';
     reset();
     showLoadHint.value = false;
     loading.value = true;
@@ -52,39 +57,68 @@ async function load() {
             responseType: 'text',
             transformResponse: [(d: any) => d], // keep raw text, don't JSON-parse
         });
+        if (generation !== loadGeneration) return;
         content.value = typeof resp.data === 'string' ? resp.data : String(resp.data);
         reloadKey.value++;
     } catch (e: any) {
+        if (generation !== loadGeneration) return;
         error.value = `Couldn't load ${cfg.fileName} from ${configPath(cfg)}: ${errMsg(e, 'request failed')}`;
         showLoadHint.value = true;
     } finally {
-        loading.value = false;
+        if (generation === loadGeneration) loading.value = false;
     }
 }
 
 async function onSave(newContent: string) {
     const cfg = selected.value;
-    if (!cfg) return;
+    if (!cfg || saving.value) return;
+    failureKind.value = 'save';
     saving.value = true;
     reset();
     try {
+        // The file-manager API has no ETag/If-Match contract. Re-read immediately
+        // before uploading so another panel user or the game process cannot be
+        // silently overwritten by a stale editor.
+        const current = await axios.get(`${base}/stream-file`, {
+            params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
+            responseType: 'text',
+            transformResponse: [(x: unknown) => x],
+        });
+        const currentText = typeof current.data === 'string' ? current.data : String(current.data ?? '');
+        if (currentText !== content.value) {
+            failureKind.value = 'conflict';
+            error.value = 'This file changed since it was loaded. Reload it and merge your changes before saving.';
+            return;
+        }
         const fd = new FormData();
         fd.append('disk', cfg.disk ?? 'server');
         fd.append('path', configDir(cfg));
         fd.append('file', new File([newContent], cfg.fileName, { type: 'text/plain' }));
         await axios.post(`${base}/update-file`, fd);
         content.value = newContent;
+        editorDirty.value = false;
         reloadKey.value++;
         notice.value = 'Saved.';
     } catch (e: any) {
-        error.value = `Couldn't save ${cfg.fileName}: ${errMsg(e, 'request failed')}`;
+        failureKind.value = 'save';
+        error.value = `Couldn't save ${cfg.fileName}: ${errMsg(e, 'request failed')}. Use Save to retry with your latest draft.`;
     } finally {
         saving.value = false;
     }
 }
 
+function retry() {
+    if (failureKind.value === 'conflict') {
+        if (!window.confirm('Reloading will discard your unsaved draft. Continue?')) return;
+        editorDirty.value = false;
+    }
+    load();
+}
+
 function selectConfig(cfg: GameConfig) {
-    if (selected.value === cfg) return;
+    if (selected.value === cfg || saving.value) return;
+    if (editorDirty.value && !window.confirm('Discard unsaved changes and switch files?')) return;
+    editorDirty.value = false;
     selected.value = cfg;
     load();
 }
@@ -111,6 +145,7 @@ if (selected.value) load();
                             ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
                             : 'border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
                     "
+                    :disabled="saving"
                     @click="selectConfig(cfg)"
                 >
                     {{ cfg.fileName }}
@@ -123,10 +158,11 @@ if (selected.value) load();
                 {{ error }}
                 <template #action>
                     <button
+                        v-if="failureKind !== 'save'"
                         class="shrink-0 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                        @click="load"
+                        @click="retry"
                     >
-                        Retry
+                        {{ failureKind === 'conflict' ? 'Reload' : 'Retry' }}
                     </button>
                 </template>
                 <template #detail>
@@ -154,7 +190,9 @@ if (selected.value) load();
                 :extension="extOf(selected.fileName)"
                 :plugin-id="pluginId"
                 :game="selected"
+                :saving="saving"
                 embedded
+                @dirty-change="editorDirty = $event"
                 @save="onSave"
             />
         </template>

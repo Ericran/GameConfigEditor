@@ -189,4 +189,22 @@ describe('useConfigForm', () => {
         models['name'].value = 'fresh';
         expect(doc.serialize()).toContain('name=fresh');
     });
+
+    it('does not mark a rejected structured write dirty and exposes an actionable error', () => {
+        const doc = jsonFormat.parse('{"List":[1,2]}')!;
+        const rawSchema: Schema = [
+            {
+                id: 'json',
+                title: 'JSON',
+                icon: 'i',
+                fields: [{ key: 'List', label: 'List', type: 'raw' }],
+            },
+        ];
+        const { models, dirty, writeError } = useConfigForm(doc, rawSchema, jsonFormat.codec);
+        models.List.value = 'not-json';
+
+        expect(dirty.value).toBe(false);
+        expect(writeError.value).toContain('List');
+        expect(JSON.parse(doc.serialize()).List).toEqual([1, 2]);
+    });
 });

@@ -129,14 +129,16 @@ describe('makeCodec', () => {
         expect(q.toRaw('hello', 'select')).toBe('hello');
     });
 
-    it('round-trips text containing quotes and commas', () => {
+    it('round-trips text containing quotes, backslashes and commas with valid escaped syntax', () => {
         const q = makeCodec({
             boolTrue: 'True',
             boolFalse: 'False',
             quoteText: quoteDouble,
             unquoteText: unquoteDouble,
         });
-        for (const v of ['a, b', 'has "inner" quotes', '', 'trailing ']) {
+        expect(q.toRaw('has "inner" quotes', 'text')).toBe('"has \\"inner\\" quotes"');
+        expect(q.toRaw('C:\\servers\\one', 'text')).toBe('"C:\\\\servers\\\\one"');
+        for (const v of ['a, b', 'has "inner" quotes', 'C:\\servers\\one', '', 'trailing ']) {
             expect(q.fromRaw(q.toRaw(v, 'text'), 'text')).toBe(v);
         }
     });

@@ -21,33 +21,56 @@ const KEYWORDS = new Set(['set', 'seta', 'sets', 'setr', 'setu']);
 
 type Line =
     | { kind: 'raw'; text: string }
-    | { kind: 'kv'; indent: string; keyword: string; name: string; value: string };
+    | { kind: 'kv'; indent: string; keyword: string; name: string; separator: string; value: string; suffix: string };
+
+/** Split a trailing // comment outside a quoted value, preserving its padding. */
+function splitInlineComment(value: string): [string, string] {
+    let quoted = false;
+    let escaped = false;
+    for (let i = 0; i < value.length - 1; i++) {
+        const c = value[i];
+        if (c === '"' && !escaped) quoted = !quoted;
+        if (!quoted && c === '/' && value[i + 1] === '/' && (i === 0 || /\s/.test(value[i - 1]))) {
+            let start = i;
+            while (start > 0 && /[ \t]/.test(value[start - 1])) start--;
+            return [value.slice(0, start), value.slice(start)];
+        }
+        escaped = c === '\\' && !escaped;
+        if (c !== '\\') escaped = false;
+    }
+    return [value, ''];
+}
 
 function parseLine(text: string): Extract<Line, { kind: 'kv' }> | null {
     const indent = (text.match(/^(\s*)/) as RegExpMatchArray)[1];
     const rest = text.slice(indent.length);
     if (rest === '' || rest.startsWith('//')) return null;
 
-    const m = rest.match(/^(\S+)\s*([\s\S]*)$/);
+    const m = rest.match(/^(\S+)(\s*)([\s\S]*)$/);
     if (!m) return null;
     let name = m[1];
-    let value = m[2];
+    let separator = m[2];
+    let value = m[3];
     let keyword = '';
     if (KEYWORDS.has(name.toLowerCase()) && value) {
-        const m2 = value.match(/^(\S+)\s*([\s\S]*)$/);
+        const m2 = value.match(/^(\S+)(\s*)([\s\S]*)$/);
         if (m2) {
             keyword = name;
             name = m2[1];
-            value = m2[2];
+            separator = m2[2];
+            value = m2[3];
         }
     }
-    return { kind: 'kv', indent, keyword, name, value };
+    const [cleanValue, suffix] = splitInlineComment(value);
+    return { kind: 'kv', indent, keyword, name, separator, value: cleanValue, suffix };
 }
 
 function emit(l: Line): string {
     if (l.kind === 'raw') return l.text;
     const kw = l.keyword ? l.keyword + ' ' : '';
-    return l.value === '' ? `${l.indent}${kw}${l.name}` : `${l.indent}${kw}${l.name} ${l.value}`;
+    return l.value === ''
+        ? `${l.indent}${kw}${l.name}${l.suffix ? l.separator : ''}${l.suffix}`
+        : `${l.indent}${kw}${l.name}${l.separator || ' '}${l.value}${l.suffix}`;
 }
 
 function parse(text: string): ConfigDoc | null {
@@ -82,11 +105,12 @@ function parse(text: string): ConfigDoc | null {
             const i = idx[a];
             if (i !== undefined) {
                 (lines[i] as Extract<Line, { kind: 'kv' }>).value = val;
-                return;
+                return true;
             }
-            lines.push({ kind: 'kv', indent: '', keyword: '', name: a, value: val });
+            lines.push({ kind: 'kv', indent: '', keyword: '', name: a, separator: val === '' ? '' : ' ', value: val, suffix: '' });
             order.push(a);
             idx[a] = lines.length - 1;
+            return true;
         },
         remove: (a) => {
             const i = idx[a];

@@ -56,8 +56,8 @@ export interface ConfigDoc {
     keys(): string[];
     has(address: string): boolean;
     getRaw(address: string): string | undefined;
-    /** Set (creating the entry if absent). */
-    setRaw(address: string, rawValue: string): void;
+    /** Set (creating the entry if absent). Returns false when the format cannot safely apply the write. */
+    setRaw(address: string, rawValue: string): boolean;
     /** Remove an entry entirely (used by guardrails that clear a value). */
     remove(address: string): void;
     /** Section label for grouping unknown keys; '' when the format is flat. */
