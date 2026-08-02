@@ -16,13 +16,13 @@ TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (th
 OUT="${OUT:-GameAP-GameConfigEditor.wasm}"
 U="$(id -u):$(id -g)"
 
-# Where the Go build/module/GOPATH caches live. Defaults to ./.cache, which is
-# what you want locally: it persists between builds and keeps them fast.
-#
-# CI must override it. Under the Actions runner $PWD is a fresh workspace per
-# job, so a cache in it is cold every run AND cannot be deleted afterwards (see
-# the chmod below), which strands hundreds of MB per build.
-CACHE_DIR="${CACHE_DIR:-$PWD/.cache}"
+# Where the Go build/module/GOPATH caches live. Deliberately outside the source
+# tree, in the user's cache directory: under the Actions runner $PWD is a fresh
+# workspace per job, so a cache inside it would be cold every run AND impossible
+# to delete afterwards (see the chmod below), stranding hundreds of MB a build.
+# Keeping it here means CI needs no override, so no machine-specific path has to
+# be written into the workflow.
+CACHE_DIR="${CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/gameap-build}"
 
 # Go marks its module cache read-only - files 0444, module dirs 0555 - so
 # `rm -rf` fails on it even as the owner, because unlinking an entry needs write

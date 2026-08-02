@@ -26,22 +26,20 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
-  # Runs on the `wasm` label, which is a HOST-mode runner - steps execute
-  # directly on the machine rather than in a job container. That is required,
-  # not a preference: build.sh does `docker run -v "$PWD/frontend:/app"`, and
-  # inside a container that path is resolved by the host daemon against the
-  # host filesystem, where it does not exist. Host mode makes $PWD a real path,
-  # so build.sh behaves exactly as it does when run by hand. the build host is also
-  # where the node and tinygo images are already cached.
+  # Needs the `wasm` label: a HOST-mode runner, where steps execute directly on
+  # the machine rather than in a job container. That is a requirement, not a
+  # preference - build.sh does `docker run -v "$PWD/frontend:/app"`, and from
+  # inside a container that path is resolved by the host daemon against the host
+  # filesystem, where it does not exist. Host mode makes $PWD a real path, so
+  # build.sh behaves exactly as it does when run by hand. The runner also needs
+  # Docker, since build.sh drives the Node and TinyGo images.
+  #
+  # The label names the capability, not a machine, so this file says nothing
+  # about where it runs. build.sh puts its caches under the user's cache dir by
+  # default, so no path needs configuring here either.
   plugin:
     if: github.event_name != 'pull_request'
     runs-on: wasm
     steps:
       - uses: actions/checkout@v4
-      # Keep the Go caches out of the job workspace. It is deleted after every
-      # run, so a cache inside it is cold every build - and Go's module cache is
-      # read-only, so the runner cannot delete it either and strands ~130MB per
-      # job. An absolute path outside the workspace fixes both.
       - run: ./build.sh
-        env:
-          CACHE_DIR: $HOME/.cache/gameap-build
