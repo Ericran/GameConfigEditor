@@ -11,9 +11,10 @@
  * Mod folders come from `-game <folder>` in the catalog's start commands, which
  * is why Opposing Force is `gearbox` rather than `op4`.
  */
-import type { Group, Schema } from '../formats/types';
+import type { Group } from '../formats/types';
 import type { GameConfig } from './registry';
 import { convarFormat } from '../formats/convar';
+import { family, withExtras } from './family';
 import { n, b, t, sel } from './fields';
 
 const shared: Group[] = [
@@ -112,10 +113,6 @@ const extras: Record<string, Group> = {
     },
 };
 
-function schemaFor(extrasKey: string | null): Schema {
-    return extrasKey && extras[extrasKey] ? [...shared, extras[extrasKey]] : shared;
-}
-
 interface GoldSourceDef {
     gameId: string;
     gameName: string;
@@ -137,11 +134,7 @@ const defs: GoldSourceDef[] = [
     { gameId: 'svencoop', gameName: 'Sven Co-op', dir: '/svencoop/cfg', extras: 'svencoop' },
 ];
 
-export const goldSourceGames: GameConfig[] = defs.map((d) => ({
-    gameId: d.gameId,
-    gameName: d.gameName,
-    fileName: 'server.cfg',
-    dir: d.dir,
-    format: convarFormat,
-    schema: schemaFor(d.extras),
-}));
+export const goldSourceGames: GameConfig[] = family(
+    { fileName: 'server.cfg', format: convarFormat },
+    defs.map(({ extras: key, ...rest }) => ({ ...rest, schema: withExtras(shared, extras, key) })),
+);

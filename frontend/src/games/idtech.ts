@@ -15,6 +15,7 @@
 import type { Group, Schema } from '../formats/types';
 import type { GameConfig } from './registry';
 import { idTechConvarFormat } from '../formats/convar';
+import { family } from './family';
 import { n, b, t } from './fields';
 
 const PATH_HINT =
@@ -144,12 +145,7 @@ const defs: IdTechDef[] = [
     { gameId: 'fivem', gameName: 'FiveM', dir: '', schema: fivemSchema },
 ];
 
-export const idTechGames: GameConfig[] = defs.map((d) => ({
-    gameId: d.gameId,
-    gameName: d.gameName,
-    fileName: 'server.cfg',
-    dir: d.dir,
-    format: idTechConvarFormat,
-    schema: d.schema,
-    loadHint: PATH_HINT,
-}));
+export const idTechGames: GameConfig[] = family(
+    { fileName: 'server.cfg', format: idTechConvarFormat, loadHint: PATH_HINT },
+    defs,
+);

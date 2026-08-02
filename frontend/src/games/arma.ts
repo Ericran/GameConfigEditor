@@ -11,6 +11,7 @@
 import type { Group, Schema } from '../formats/types';
 import type { GameConfig } from './registry';
 import { armaFormat } from '../formats/arma';
+import { family } from './family';
 import { n, b, t, raw, sel } from './fields';
 
 const NAME_HINT =
@@ -93,12 +94,7 @@ const defs: Array<{ gameId: string; gameName: string }> = [
 
 export const armaSchema: Schema = shared;
 
-export const armaGames: GameConfig[] = defs.map((d) => ({
-    gameId: d.gameId,
-    gameName: d.gameName,
-    fileName: 'server.cfg',
-    dir: '',
-    format: armaFormat,
-    schema: shared,
-    loadHint: NAME_HINT,
-}));
+export const armaGames: GameConfig[] = family(
+    { fileName: 'server.cfg', format: armaFormat, loadHint: NAME_HINT },
+    defs.map((d) => ({ ...d, schema: shared })),
+);

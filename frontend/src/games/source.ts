@@ -7,9 +7,10 @@
  * values (sv_pure, sv_region, mp_forcecamera) are `select`, so we never clamp a
  * valid value to 0/1.
  */
-import type { Group, Schema } from '../formats/types';
+import type { Group } from '../formats/types';
 import type { GameConfig } from './registry';
 import { convarFormat } from '../formats/convar';
+import { family, withExtras } from './family';
 import { n, b, t, sel } from './fields';
 
 const shared: Group[] = [
@@ -139,10 +140,6 @@ const extras: Record<string, Group> = {
     },
 };
 
-function schemaFor(extrasKey: string | null): Schema {
-    return extrasKey && extras[extrasKey] ? [...shared, extras[extrasKey]] : shared;
-}
-
 // game_id -> { display name, mod-folder path, which extras group, optional note }
 interface SourceDef {
     gameId: string;
@@ -174,12 +171,7 @@ const defs: SourceDef[] = [
     { gameId: 'synergy', gameName: 'Synergy', dir: '/synergy/cfg', extras: null },
 ];
 
-export const sourceGames: GameConfig[] = defs.map((d) => ({
-    gameId: d.gameId,
-    gameName: d.gameName,
-    fileName: 'server.cfg',
-    dir: d.dir,
-    format: convarFormat,
-    schema: schemaFor(d.extras),
-    note: d.note,
-}));
+export const sourceGames: GameConfig[] = family(
+    { fileName: 'server.cfg', format: convarFormat },
+    defs.map(({ extras: key, ...rest }) => ({ ...rest, schema: withExtras(shared, extras, key) })),
+);
