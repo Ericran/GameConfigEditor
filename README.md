@@ -209,7 +209,9 @@ Requires only **Docker** and **git** on the host - TinyGo and Node run in
 containers.
 
 ```sh
-./build.sh          # or: make build
+./build.sh            # build the plugin
+./build.sh clean      # drop build artifacts, keep the SDK checkout
+./build.sh distclean  # also drop the SDK checkout and caches
 ```
 
 This will:
@@ -227,7 +229,7 @@ with a local Node (no Docker needed for the JS bundle).
 ```sh
 cd frontend
 npm test           # vitest: format round-trips, form building, registry
-npm run typecheck  # vue-tsc, including .vue script blocks and templates
+npm run typecheck  # vue-tsc over src/, plus tsc over the build config
 ```
 
 The format layer is where a bug would silently corrupt someone's live server
@@ -260,6 +262,10 @@ written down so a later change doesn't quietly undo one.
   package, but `main.go` embeds `dist/plugin.css`. Fixed by
   `build.lib.cssFileName`, which also keeps the name stable if the package is
   ever renamed.
+- **Tailwind runs as a Vite plugin** (`@tailwindcss/vite`), not via a
+  `postcss.config.js`. Tailwind 4 handles its own prefixing, so there are no
+  standalone `postcss`/`autoprefixer` devDeps to keep in sync. Don't reintroduce
+  a PostCSS config - it would be a second, competing CSS pipeline.
 - **Version lives in three files.** `main.go`, `frontend/package.json` and
   `frontend/src/index.ts` must agree; `build.sh` fails the build if they don't.
 - **Installs are pinned.** `package-lock.json` is committed and `build.sh` runs

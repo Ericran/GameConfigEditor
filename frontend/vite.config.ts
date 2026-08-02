@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import tailwindcss from '@tailwindcss/vite';
+import type { Plugin as RollupPlugin } from 'rollup';
 import { resolve } from 'path';
 
 // GameAP provides vue/router/pinia/axios as globals on window at runtime, so we
 // externalize them and rewrite imports to read from those globals. (Same
 // approach as the official hex-editor plugin.)
-function globalExternalsPlugin() {
+function globalExternalsPlugin(): RollupPlugin {
     const globals = {
         'vue': 'window.Vue',
         'axios': 'window.axios',
@@ -20,7 +22,7 @@ function globalExternalsPlugin() {
                     `import\\s*\\{([^}]+)\\}\\s*from\\s*["']${moduleId}["'];?`,
                     'g'
                 );
-                result = result.replace(importRegex, (_, imports) => {
+                result = result.replace(importRegex, (_: string, imports: string) => {
                     const importList = imports.split(',').map(i => i.trim());
                     const destructure = importList.map(i => {
                         const parts = i.split(/\s+as\s+/);
@@ -53,7 +55,7 @@ function globalExternalsPlugin() {
     };
 }
 
-function wrapInIIFEPlugin() {
+function wrapInIIFEPlugin(): RollupPlugin {
     return {
         name: 'wrap-iife',
         generateBundle(options, bundle) {
@@ -73,7 +75,10 @@ function wrapInIIFEPlugin() {
 }
 
 export default defineConfig({
-    plugins: [vue()],
+    // Tailwind runs as a Vite plugin rather than through postcss.config.js -
+    // one less config file, and no standalone postcss/autoprefixer deps. CSS
+    // still lands in dist/plugin.css via build.lib.cssFileName below.
+    plugins: [vue(), tailwindcss()],
     build: {
         lib: {
             entry: resolve(process.cwd(), 'src/index.ts'),

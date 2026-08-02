@@ -5,6 +5,8 @@ frontend/dist/*
 
 # dependencies / caches
 frontend/node_modules
+# emitted by `tsc -p tsconfig.node.json` (composite project, so it's unavoidable)
+frontend/*.tsbuildinfo
 # package-lock.json IS tracked on purpose - build.sh installs with `npm ci` so a
 # given commit always builds against the same dependency versions.
 /.sdk/
