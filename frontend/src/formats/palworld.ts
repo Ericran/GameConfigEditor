@@ -9,7 +9,7 @@
  * file and untouched keys keep their exact spelling.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec, quoteDouble, unquoteDouble } from './shared';
+import { makeCodec, orderedTable, quoteDouble, unquoteDouble } from './shared';
 
 const codec = makeCodec({
     boolTrue: 'True',
@@ -70,30 +70,26 @@ function parse(text: string): ConfigDoc | null {
         const key = raw.slice(0, eq).trim();
         return key ? { raw, key } : { raw };
     });
-    const idx: Record<string, number> = {};
-    const order: string[] = [];
+    const table = orderedTable<number>();
     const reindex = () => {
-        for (const k of Object.keys(idx)) delete idx[k];
-        order.length = 0;
+        table.clear();
         tokens.forEach((token, i) => {
-            if (!token.key) return;
-            if (!(token.key in idx)) order.push(token.key);
-            idx[token.key] = i; // the game's live value is the last occurrence
+            if (token.key) table.set(token.key, i); // the game's live value is the last occurrence
         });
     };
     reindex();
 
     return {
-        keys: () => order,
-        has: (a) => a in idx,
+        keys: () => table.keys(),
+        has: (a) => table.has(a),
         getRaw: (a) => {
-            const i = idx[a];
+            const i = table.get(a);
             if (i === undefined) return undefined;
             const eq = tokens[i].raw.indexOf('=');
             return eq === -1 ? undefined : tokens[i].raw.slice(eq + 1);
         },
         setRaw: (a, val) => {
-            const i = idx[a];
+            const i = table.get(a);
             if (i === undefined) {
                 tokens.push({ raw: `${a}=${val}`, key: a });
             } else {
@@ -116,7 +112,7 @@ function parse(text: string): ConfigDoc | null {
         },
         removeMany: (addresses) => {
             const wanted = new Set(addresses);
-            if ([...wanted].some((address) => !(address in idx))) return false;
+            if ([...wanted].some((address) => !table.has(address))) return false;
             for (let i = tokens.length - 1; i >= 0; i--) {
                 if (tokens[i].key && wanted.has(tokens[i].key!)) tokens.splice(i, 1);
             }

@@ -64,6 +64,64 @@ export function makeCodec(opts: CodecOptions): Codec {
     };
 }
 
+/**
+ * Split a document into lines, remembering its newline style.
+ *
+ * Every line-based parser has to round-trip CRLF exactly: a Windows-authored
+ * config that comes back with bare LF is a diff on every line, and some servers
+ * won't read it back. Detect once here, rejoin with the same string.
+ */
+export function splitLines(text: string): { lines: string[]; nl: string } {
+    return { lines: text.split(/\r?\n/), nl: text.includes('\r\n') ? '\r\n' : '\n' };
+}
+
+/**
+ * The address table every parser builds while scanning a document: first-seen
+ * order for display, and a lookup that resolves to the LAST occurrence of a
+ * repeated key - the one the game itself reads, so the one we must edit.
+ *
+ * `V` is whatever an address resolves to: a line index for most formats, a
+ * located assignment for Arma. `normalize` folds addresses for formats whose
+ * keys are case-insensitive (Unreal/ARK INI); display order keeps the file's
+ * own spelling.
+ *
+ * The backing map is prototype-less on purpose. With a plain object literal,
+ * `'constructor' in idx` is true for every document, so a config with a key
+ * named `constructor` or `toString` resolved to an inherited function and blew
+ * up the lookup that followed.
+ */
+export interface OrderedTable<V> {
+    clear(): void;
+    set(address: string, value: V): void;
+    get(address: string): V | undefined;
+    has(address: string): boolean;
+    /** First-seen order, in the file's own spelling. Live array, not a copy. */
+    keys(): string[];
+    readonly empty: boolean;
+}
+
+export function orderedTable<V>(normalize: (address: string) => string = (a) => a): OrderedTable<V> {
+    let idx: Record<string, V> = Object.create(null);
+    const order: string[] = [];
+    return {
+        clear() {
+            idx = Object.create(null);
+            order.length = 0;
+        },
+        set(address, value) {
+            const na = normalize(address);
+            if (!(na in idx)) order.push(address);
+            idx[na] = value;
+        },
+        get: (address) => idx[normalize(address)],
+        has: (address) => normalize(address) in idx,
+        keys: () => order,
+        get empty() {
+            return order.length === 0;
+        },
+    };
+}
+
 /** Backslash-escaped quote helpers for idTech/Unreal-style strings. */
 export const quoteDouble = (v: string) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 export const unquoteDouble = (raw: string) => {

@@ -8,7 +8,7 @@
  * (`\n` vs `\r\n`) is detected and preserved.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec, type CodecOptions } from './shared';
+import { makeCodec, orderedTable, splitLines, type CodecOptions } from './shared';
 
 const COMMENT = /^\s*[#!;]/;
 const KV = /^\s*([^=\s][^=]*?)\s*=(.*)$/;
@@ -29,45 +29,42 @@ export function makeKeyValueFormat(id: string, opts: KeyValueOptions = {}): Form
     const codec = makeCodec({ boolTrue: 'true', boolFalse: 'false', ...opts.codec });
 
     function parse(text: string): ConfigDoc | null {
-        const nl = text.includes('\r\n') ? '\r\n' : '\n';
-        const lines = text.split(/\r?\n/).map((t) => ({ text: t, key: undefined as string | undefined }));
-        const idx: Record<string, number> = {};
-        const order: string[] = [];
-        let kvCount = 0;
-
-        lines.forEach((line, i) => {
-            if (COMMENT.test(line.text) || line.text.trim() === '') return;
-            const m = line.text.match(KV);
-            if (!m) return;
-            const key = m[1].trim();
-            line.key = key;
-            if (!(key in idx)) order.push(key);
-            idx[key] = i; // last occurrence is the one we edit
-            kvCount++;
-        });
-        if (kvCount === 0) return null; // doesn't look like a key=value file
+        const { lines: rawLines, nl } = splitLines(text);
+        const lines = rawLines.map((t) => ({ text: t, key: undefined as string | undefined }));
+        const table = orderedTable<number>();
 
         const reindex = () => {
-            for (const k of Object.keys(idx)) delete idx[k];
-            lines.forEach((l, i) => {
-                if (l.key !== undefined) idx[l.key] = i;
+            table.clear();
+            lines.forEach((line, i) => {
+                if (COMMENT.test(line.text) || line.text.trim() === '') {
+                    line.key = undefined;
+                    return;
+                }
+                const m = line.text.match(KV);
+                if (!m) {
+                    line.key = undefined;
+                    return;
+                }
+                line.key = m[1].trim();
+                table.set(line.key, i); // last occurrence is the one we edit
             });
         };
+        reindex();
+        if (table.empty) return null; // doesn't look like a key=value file
 
         return {
-            keys: () => order,
-            has: (a) => a in idx,
+            keys: () => table.keys(),
+            has: (a) => table.has(a),
             getRaw: (a) => {
-                const i = idx[a];
+                const i = table.get(a);
                 if (i === undefined) return undefined;
                 const m = lines[i].text.match(SPLIT);
                 return m ? m[2] : undefined;
             },
             setRaw: (a, val) => {
-                const i = idx[a];
+                const i = table.get(a);
                 if (i === undefined) {
-                    order.push(a);
-                    idx[a] = lines.push({ text: `${a}=${val}`, key: a }) - 1;
+                    table.set(a, lines.push({ text: `${a}=${val}`, key: a }) - 1);
                 } else {
                     // Keep the line's own prefix (indentation, key spelling, and
                     // the padding around `=`); replace only the value.
@@ -77,11 +74,9 @@ export function makeKeyValueFormat(id: string, opts: KeyValueOptions = {}): Form
                 return true;
             },
             remove: (a) => {
-                const i = idx[a];
+                const i = table.get(a);
                 if (i === undefined) return false;
                 lines.splice(i, 1);
-                const oi = order.indexOf(a);
-                if (oi >= 0) order.splice(oi, 1);
                 reindex();
                 return true;
             },

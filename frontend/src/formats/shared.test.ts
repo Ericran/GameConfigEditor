@@ -3,8 +3,11 @@
  * formats.
  */
 import { describe, expect, it } from 'vitest';
-import { addr, addrKey, addrSection, makeCodec, quoteDouble, unquoteDouble } from './shared';
+import { addr, addrKey, addrSection, makeCodec, orderedTable, quoteDouble, splitLines, unquoteDouble } from './shared';
 import { section } from '../games/fields';
+import { keyvalueFormat } from './keyvalue';
+import { iniFormat } from './ini';
+import { convarFormat } from './convar';
 
 describe('address encoding', () => {
     it('uses the bare key when there is no section', () => {
@@ -141,5 +144,74 @@ describe('makeCodec', () => {
         for (const v of ['a, b', 'has "inner" quotes', 'C:\\servers\\one', '', 'trailing ']) {
             expect(q.fromRaw(q.toRaw(v, 'text'), 'text')).toBe(v);
         }
+    });
+});
+
+describe('splitLines', () => {
+    it('preserves the document newline style', () => {
+        expect(splitLines('a\nb')).toEqual({ lines: ['a', 'b'], nl: '\n' });
+        expect(splitLines('a\r\nb')).toEqual({ lines: ['a', 'b'], nl: '\r\n' });
+        // A single CRLF anywhere marks the file as CRLF, so a rejoin keeps it.
+        expect(splitLines('a\nb\r\nc').nl).toBe('\r\n');
+    });
+});
+
+describe('orderedTable', () => {
+    it('keeps first-seen order but resolves to the last occurrence', () => {
+        const t = orderedTable<number>();
+        t.set('a', 0);
+        t.set('b', 1);
+        t.set('a', 2); // duplicate key: the game reads the last one
+        expect(t.keys()).toEqual(['a', 'b']);
+        expect(t.get('a')).toBe(2);
+    });
+
+    it('folds addresses when a format is case-insensitive, keeping file spelling', () => {
+        const t = orderedTable<number>((a) => a.toLowerCase());
+        t.set('MaxPlayers', 0);
+        t.set('maxplayers', 1);
+        expect(t.keys()).toEqual(['MaxPlayers']); // one entry, original casing
+        expect(t.get('MAXPLAYERS')).toBe(1);
+    });
+
+    it('does not inherit Object.prototype members', () => {
+        const t = orderedTable<number>();
+        expect(t.has('constructor')).toBe(false);
+        expect(t.has('toString')).toBe(false);
+        expect(t.get('constructor')).toBeUndefined();
+        t.set('constructor', 7);
+        expect(t.get('constructor')).toBe(7);
+        expect(t.keys()).toEqual(['constructor']);
+    });
+});
+
+describe('keys colliding with Object.prototype', () => {
+    // A config key literally named `constructor`/`toString` used to resolve to an
+    // inherited function through the plain-object index, so `has` lied and the
+    // lookup after it threw. Every parser shares one prototype-less table now.
+    it('round-trips a key=value file with a constructor key', () => {
+        const text = 'constructor=1\ntoString=hello\nmax-players=20\n';
+        const doc = keyvalueFormat.parse(text)!;
+        expect(doc).not.toBeNull();
+        expect(doc.has('constructor')).toBe(true);
+        expect(doc.getRaw('constructor')).toBe('1');
+        expect(doc.has('hasOwnProperty')).toBe(false);
+        expect(doc.getRaw('hasOwnProperty')).toBeUndefined();
+        expect(doc.serialize()).toBe(text);
+        doc.setRaw('constructor', '2');
+        expect(doc.serialize()).toBe('constructor=2\ntoString=hello\nmax-players=20\n');
+    });
+
+    it('round-trips an ini and a convar file with prototype-named keys', () => {
+        const ini = iniFormat.parse('[Server]\nvalueOf=3\n')!;
+        expect(ini.has(addr('Server', 'valueOf'))).toBe(true);
+        expect(ini.getRaw(addr('Server', 'valueOf'))).toBe('3');
+        expect(ini.has(addr('Server', 'toString'))).toBe(false);
+
+        const cfg = convarFormat.parse('hostname "x"\ntoString 1\n')!;
+        expect(cfg.has('toString')).toBe(true);
+        expect(cfg.getRaw('toString')).toBe('1');
+        expect(cfg.has('constructor')).toBe(false);
+        expect(cfg.serialize()).toBe('hostname "x"\ntoString 1\n');
     });
 });

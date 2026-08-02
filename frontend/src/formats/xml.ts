@@ -21,7 +21,7 @@
  * an ampersand round-trips instead of corrupting the document.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec, type CodecOptions } from './shared';
+import { makeCodec, orderedTable, splitLines, type CodecOptions } from './shared';
 
 const ENTITIES: Record<string, string> = {
     '&amp;': '&',
@@ -74,19 +74,14 @@ export function makeXmlFormat(id: string, opts: XmlOptions): Format {
     const elemRe = /^(\s*)<([A-Za-z_][\w.:-]*)(\s[^>]*)?>([^<]*)<\/\2>(\s*)$/;
 
     function parse(text: string): ConfigDoc | null {
-        const nl = text.includes('\r\n') ? '\r\n' : '\n';
-        const lines = text.split(/\r?\n/);
-        const idx: Record<string, number> = {};
-        const order: string[] = [];
+        const { lines, nl } = splitLines(text);
+        const table = orderedTable<number>();
 
         const reindex = () => {
-            for (const k of Object.keys(idx)) delete idx[k];
-            order.length = 0;
+            table.clear();
             lines.forEach((line, i) => {
                 const key = keyOf(line);
-                if (key === undefined) return;
-                if (!(key in idx)) order.push(key);
-                idx[key] = i; // last occurrence is the editable one
+                if (key !== undefined) table.set(key, i); // last occurrence is the editable one
             });
         };
 
@@ -134,17 +129,17 @@ export function makeXmlFormat(id: string, opts: XmlOptions): Format {
         }
 
         reindex();
-        if (order.length === 0) return null; // nothing addressable -> not our shape
+        if (table.empty) return null; // nothing addressable -> not our shape
 
         return {
-            keys: () => order,
-            has: (a) => a in idx,
+            keys: () => table.keys(),
+            has: (a) => table.has(a),
             getRaw: (a) => {
-                const i = idx[a];
+                const i = table.get(a);
                 return i === undefined ? undefined : rawOf(lines[i]);
             },
             setRaw: (a, val) => {
-                const i = idx[a];
+                const i = table.get(a);
                 // Deliberately does not invent new entries: where a new node
                 // belongs in an XML tree is not something a line model can know,
                 // and guessing would risk writing it outside the root element.
@@ -153,7 +148,7 @@ export function makeXmlFormat(id: string, opts: XmlOptions): Format {
                 return true;
             },
             remove: (a) => {
-                const i = idx[a];
+                const i = table.get(a);
                 if (i === undefined) return false;
                 lines.splice(i, 1);
                 reindex();

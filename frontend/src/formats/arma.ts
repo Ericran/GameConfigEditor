@@ -22,7 +22,7 @@
  * points at - so the registry's path is a convention, not a guarantee.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec } from './shared';
+import { makeCodec, orderedTable, splitLines } from './shared';
 
 const quoteArma = (v: string) => `"${v.replace(/"/g, '""')}"`;
 const unquoteArma = (raw: string) => {
@@ -119,41 +119,34 @@ function parseAssignment(code: string, line: number): Entry | null {
 }
 
 function parse(text: string): ConfigDoc | null {
-    const nl = text.includes('\r\n') ? '\r\n' : '\n';
-    const lines = text.split(/\r?\n/);
-    const idx: Record<string, Entry> = {};
-    const order: string[] = [];
+    const { lines, nl } = splitLines(text);
+    const table = orderedTable<Entry>();
 
     const reindex = () => {
-        for (const k of Object.keys(idx)) delete idx[k];
-        order.length = 0;
+        table.clear();
         let depth = 0;
         let inBlockComment = false;
         lines.forEach((line, i) => {
             const scan = scanStructure(line, inBlockComment);
             inBlockComment = scan.inBlockComment;
             const found = depth === 0 ? parseAssignment(scan.code, i) : null;
-            if (found) {
-                const key = found.key;
-                if (!(key in idx)) order.push(key);
-                idx[key] = found;
-            }
+            if (found) table.set(found.key, found);
             depth = Math.max(0, depth + scan.delta);
         });
     };
     reindex();
-    if (order.length === 0) return null; // no assignments -> not an Arma config
+    if (table.empty) return null; // no assignments -> not an Arma config
 
     return {
-        keys: () => order,
-        has: (a) => a in idx,
+        keys: () => table.keys(),
+        has: (a) => table.has(a),
         getRaw: (a) => {
-            const found = idx[a];
+            const found = table.get(a);
             if (!found) return undefined;
             return lines[found.line].slice(found.valueStart, found.valueEnd).trim();
         },
         setRaw: (a, val) => {
-            const found = idx[a];
+            const found = table.get(a);
             if (!found) {
                 lines.push(`${a} = ${val};`);
                 reindex();
@@ -165,7 +158,7 @@ function parse(text: string): ConfigDoc | null {
             return true;
         },
         remove: (a) => {
-            const found = idx[a];
+            const found = table.get(a);
             if (!found) return false;
             lines.splice(found.line, 1);
             reindex();

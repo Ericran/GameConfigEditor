@@ -15,7 +15,7 @@
  * resolve to the last occurrence for editing; the rest are preserved untouched.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec, addr, addrSection, addrKey, type CodecOptions } from './shared';
+import { makeCodec, addr, addrSection, addrKey, orderedTable, splitLines, type CodecOptions } from './shared';
 
 const SECTION = /^\s*\[([^\]]*)\]\s*$/;
 const COMMENT = /^\s*[;#]/;
@@ -39,16 +39,14 @@ export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
     const norm = (s: string) => (ci ? s.toLowerCase() : s);
 
     function parse(text: string): ConfigDoc | null {
-        const nl = text.includes('\r\n') ? '\r\n' : '\n';
-        const lines: Line[] = text.split(/\r?\n/).map((t) => ({ text: t }));
-        const idx: Record<string, number> = {}; // norm(address) -> line index (last occurrence)
-        const order: string[] = []; // unique addresses (original casing), first-seen order
+        const { lines: rawLines, nl } = splitLines(text);
+        const lines: Line[] = rawLines.map((t) => ({ text: t }));
+        const table = orderedTable<number>(norm); // address -> line index (last occurrence)
         const sectionLast: Record<string, number> = {}; // norm(section) -> last line index inside it
 
         const reindex = () => {
-            for (const k of Object.keys(idx)) delete idx[k];
+            table.clear();
             for (const k of Object.keys(sectionLast)) delete sectionLast[k];
-            order.length = 0;
             let cur = '';
             lines.forEach((line, i) => {
                 const sm = line.text.match(SECTION);
@@ -70,29 +68,26 @@ export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
                     return;
                 }
                 const key = m[1].trim();
-                const a = addr(cur, key);
-                const na = norm(a);
                 line.key = key;
-                if (!(na in idx)) order.push(a);
-                idx[na] = i;
+                table.set(addr(cur, key), i);
                 sectionLast[norm(cur)] = i;
             });
         };
         reindex();
-        if (order.length === 0) return null; // no key=value pairs -> not an INI we can edit
+        if (table.empty) return null; // no key=value pairs -> not an INI we can edit
 
         return {
-            keys: () => order,
+            keys: () => table.keys(),
             normKey: (a) => norm(a),
-            has: (a) => norm(a) in idx,
+            has: (a) => table.has(a),
             getRaw: (a) => {
-                const i = idx[norm(a)];
+                const i = table.get(a);
                 if (i === undefined) return undefined;
                 const m = lines[i].text.match(KV);
                 return m ? m[2] : undefined;
             },
             setRaw: (a, val) => {
-                const i = idx[norm(a)];
+                const i = table.get(a);
                 if (i !== undefined) {
                     // Replace only the value; keep the file's original key text/casing.
                     const eq = lines[i].text.indexOf('=');
@@ -114,7 +109,7 @@ export function makeIniFormat(id: string, opts: IniOptions = {}): Format {
                 return true;
             },
             remove: (a) => {
-                const i = idx[norm(a)];
+                const i = table.get(a);
                 if (i === undefined) return false;
                 lines.splice(i, 1);
                 reindex();

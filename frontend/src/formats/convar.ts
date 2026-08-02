@@ -9,7 +9,7 @@
  * value of an edited convar is rewritten, new convars are appended.
  */
 import type { ConfigDoc, Format } from './types';
-import { makeCodec, quoteDouble, unquoteDouble, type CodecOptions } from './shared';
+import { makeCodec, orderedTable, quoteDouble, splitLines, unquoteDouble, type CodecOptions } from './shared';
 
 export interface ConvarOptions {
     /** Codec overrides - e.g. SA-MP writes bare values with no quotes. */
@@ -88,47 +88,42 @@ function emit(l: Line): string {
 }
 
 function parse(text: string, safeValue: (raw: string) => boolean, backslashEscapes: boolean): ConfigDoc | null {
-    const nl = text.includes('\r\n') ? '\r\n' : '\n';
-    const lines: Line[] = text.split(/\r?\n/).map((t) => {
+    const { lines: rawLines, nl } = splitLines(text);
+    const lines: Line[] = rawLines.map((t) => {
         const kv = parseLine(t, backslashEscapes);
         return kv ?? { kind: 'raw', text: t };
     });
-    const idx: Record<string, number> = {};
-    const order: string[] = [];
+    const table = orderedTable<number>();
 
     const reindex = () => {
-        for (const k of Object.keys(idx)) delete idx[k];
-        order.length = 0;
+        table.clear();
         lines.forEach((l, i) => {
-            if (l.kind !== 'kv') return;
-            if (!(l.name in idx)) order.push(l.name);
-            idx[l.name] = i;
+            if (l.kind === 'kv') table.set(l.name, i);
         });
     };
     reindex();
-    if (order.length === 0) return null; // no convar lines -> not a server.cfg we can edit
+    if (table.empty) return null; // no convar lines -> not a server.cfg we can edit
 
     return {
-        keys: () => order,
-        has: (a) => a in idx,
+        keys: () => table.keys(),
+        has: (a) => table.has(a),
         getRaw: (a) => {
-            const i = idx[a];
+            const i = table.get(a);
             return i === undefined ? undefined : (lines[i] as Extract<Line, { kind: 'kv' }>).value;
         },
         setRaw: (a, val) => {
             if (!safeValue(val)) return false;
-            const i = idx[a];
+            const i = table.get(a);
             if (i !== undefined) {
                 (lines[i] as Extract<Line, { kind: 'kv' }>).value = val;
                 return true;
             }
             lines.push({ kind: 'kv', indent: '', keyword: '', name: a, separator: val === '' ? '' : ' ', value: val, suffix: '' });
-            order.push(a);
-            idx[a] = lines.length - 1;
+            table.set(a, lines.length - 1);
             return true;
         },
         remove: (a) => {
-            const i = idx[a];
+            const i = table.get(a);
             if (i === undefined) return false;
             lines.splice(i, 1);
             reindex();
