@@ -124,7 +124,8 @@ A GameAP plugin is a single `.wasm` file with two parts:
 src/
   formats/            parse/serialise per format, shared ConfigDoc contract
     types.ts          ConfigDoc / Codec / Format interfaces, ConfigValue
-    shared.ts         codec factory + section-address encoding
+    shared.ts         codec factory, section-address encoding, the ordered
+                      address table + line splitting every parser builds on
     palworld.ts       OptionSettings=(...) one-liner
     keyvalue.ts       flat key=value (Minecraft, PZ, Terraria)
     ini.ts            multi-section INI, optional case-insensitivity (ARK)
@@ -139,17 +140,19 @@ src/
     goldsource.ts     GoldSource/HLDS entries (own schema, no Source-only cvars)
     idtech.ts         Quake 2/3, CoD4, FiveM (set/seta dialect)
     arma.ts           Arma 2 / 2 OA / 3
+    family.ts         family scaffolding: shared file/format/hint + extras group
     fields.ts         terse schema field constructors (n/b/t/raw/sel, section())
     schemas/          curated per-game field schemas
   composables/
     useConfigForm.ts  ConfigDoc + Schema -> grouped fields & writable models
-    useAsyncPanel.ts  load/save state + panel error messages, shared by tabs
+    useAsyncPanel.ts  load/save state, stale-response guard, panel error text
   components/
     ConfigEditor.vue      generic, format+schema-driven editor
     GameConfigTab.vue     one tab that switches on server.game_id
     LaunchSettingsTab.vue start-command vars via the panel settings API
     Banner.vue            the notice/warning/error callout
     FieldInput.vue        one control per field type
+    *.test.ts             mounted-component tests (jsdom + @vue/test-utils)
   index.ts            plugin definition: 2 tabs + N game-gated file editors
 ```
 
@@ -203,6 +206,14 @@ and renders anything not in the schema generically so nothing is ever hidden.
    `dir`, `format`, `schema`). Both the tab and a game-gated file editor wire up
    automatically.
 
+If the game belongs to an engine family that is already covered (Source,
+GoldSource, idTech/`set`-dialect, Arma), add a row to that family's `defs` table
+instead of the main registry - `family()` fills in the file name, format and
+load hint every member shares, and `withExtras()` appends the game's own group
+to the family schema. Keep the families' schemas separate even when they look
+alike: GoldSource deliberately omits Source-only convars, and merging the two
+would start offering settings HLDS ignores.
+
 ## Build
 
 Requires only **Docker** and **git** on the host - TinyGo and Node run in
@@ -215,8 +226,10 @@ containers.
 ```
 
 This will:
-1. clone the GameAP SDK into `./.sdk/gameap` at the tag matching your panel
-   (`SDK_TAG`, default `v4.3.0`);
+1. check out the GameAP SDK into `./.sdk/gameap` at the ref matching your panel
+   (`SDK_REF`, a tag or branch, default `v4.3.0`; `SDK_TAG` still works, and
+   `SDK_URL` overrides where it is cloned from). An existing checkout is reset
+   and moved to that ref rather than left as-is;
 2. build the frontend bundle (Vite, via `npm ci`) -> `frontend/dist/plugin.js` +
    `plugin.css`;
 3. compile everything to `GameAP-GameConfigEditor.wasm` with TinyGo.
@@ -228,7 +241,7 @@ with a local Node (no Docker needed for the JS bundle).
 
 ```sh
 cd frontend
-npm test           # vitest: format round-trips, form building, registry
+npm test           # vitest: format round-trips, form building, registry, tabs
 npm run typecheck  # vue-tsc over src/, plus tsc over the build config
 ```
 
@@ -236,6 +249,9 @@ The format layer is where a bug would silently corrupt someone's live server
 config, so the tests concentrate there: every format must round-trip an untouched
 file byte-for-byte, and editing one key must rewrite exactly that key's line.
 `npm run test:watch` reruns on change.
+
+`.forgejo/workflows/frontend.yml` runs those two commands plus a bundle build on
+every push, and the full `./build.sh` on anything that isn't a pull request.
 
 ## Install
 
@@ -252,8 +268,9 @@ supported config file in the file manager.
 Why the build is shaped the way it is. All of it is handled already - these are
 written down so a later change doesn't quietly undo one.
 
-- **Go 1.26 toolchain.** The v4.3.0 SDK declares `go 1.26`, and TinyGo 0.39
-  (Go <=1.25) can't build it. Hence `tinygo/tinygo:0.41.1`.
+- **Go 1.26 toolchain.** The v4.3.0 SDK declares `go 1.26`, so the TinyGo image
+  has to be new enough to compile it - `build.sh` pins `tinygo/tinygo:0.41.1`.
+  An older image capped at Go 1.25 fails at the compile step.
 - **gRPC stubs trimmed.** `pkg/proto` ships host-side `*_grpc.pb.go` whose TLS
   code TinyGo can't compile, so `build.sh` deletes them. The guest never uses them.
 - **SDK vendored via `replace`.** `github.com/gameap/gameap` is v4.x with no
@@ -266,8 +283,17 @@ written down so a later change doesn't quietly undo one.
   `postcss.config.js`. Tailwind 4 handles its own prefixing, so there are no
   standalone `postcss`/`autoprefixer` devDeps to keep in sync. Don't reintroduce
   a PostCSS config - it would be a second, competing CSS pipeline.
+- **`go mod tidy` writes to a throwaway modfile.** Left alone it rewrites the
+  committed `go.mod` on every build (bumping the `go` directive and the indirect
+  versions), so `build.sh` copies it to `.build.mod`, points
+  `GOFLAGS=-modfile=` at the copy and removes it on exit. The flip side: the Go
+  dependency versions are resolved per build, so only the npm half of the
+  toolchain is lockfile-pinned.
 - **Version lives in three files.** `main.go`, `frontend/package.json` and
   `frontend/src/index.ts` must agree; `build.sh` fails the build if they don't.
+  It only checks that they agree, not that the number moved - bump it whenever
+  the bundle changes, refactors included, or two different `.wasm` files end up
+  reporting the same version to the panel.
 - **Installs are pinned.** `package-lock.json` is committed and `build.sh` runs
   `npm ci`, so a commit always builds against the same versions. Since
   `frontend/node_modules` is bind-mounted, a build also resets your local install
