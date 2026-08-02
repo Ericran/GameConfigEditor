@@ -45,7 +45,7 @@ func (p *GameConfigPlugin) GetInfo(
 	return &pluginproto.PluginInfo{
 		Id:          "game-config-editor",
 		Name:        "Game Config Editor",
-		Version:     "2026.8.0",
+		Version:     "2026.8.1",
 		Description: "Structured editors for game server config files",
 		Author:      "psinetreject",
 		ApiVersion:  "1",
