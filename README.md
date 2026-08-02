@@ -172,6 +172,13 @@ and renders anything not in the schema generically so nothing is ever hidden.
   the panel file API (`stream-file` to read, `update-file` to save), or shows a
   short "not supported yet" note for games we don't cover. Games with several
   config files (ARK) get a file selector.
+
+  > This limitation is on its way out. GameAP 4.4.0 adds `checkGame` (a
+  > `GameCheck` of engines and/or game codes) to slot components, so the tab
+  > could be gated declaratively and the "not supported yet" branch dropped.
+  > Blocked for now on the npm side: the typed SDK carrying it is `0.3.3`, which
+  > the 4.4.0 tree declares but npm has never published - the newest published
+  > release is `0.3.2`. Revisit when it lands, rather than hand-rolling the type.
 - **File-manager editors.** These *can* be game-gated declaratively
   (`match.gameCode` = `game_id`), so browsing to a matching file offers the
   structured editor. One is registered per config file, generated from the
@@ -227,7 +234,7 @@ containers.
 
 This will:
 1. check out the GameAP SDK into `./.sdk/gameap` at the ref matching your panel
-   (`SDK_REF`, a tag or branch, default `v4.3.0`; `SDK_TAG` still works, and
+   (`SDK_REF`, a tag or branch, default `v4.4.0`; `SDK_TAG` still works, and
    `SDK_URL` overrides where it is cloned from). An existing checkout is reset
    and moved to that ref rather than left as-is;
 2. build the frontend bundle (Vite, via `npm ci`) -> `frontend/dist/plugin.js` +
@@ -268,7 +275,7 @@ supported config file in the file manager.
 Why the build is shaped the way it is. All of it is handled already - these are
 written down so a later change doesn't quietly undo one.
 
-- **Go 1.26 toolchain.** The v4.3.0 SDK declares `go 1.26`, so the TinyGo image
+- **Go 1.26 toolchain.** The SDK declares `go 1.26`, so the TinyGo image
   has to be new enough to compile it - `build.sh` pins `tinygo/tinygo:0.41.1`.
   An older image capped at Go 1.25 fails at the compile step.
 - **gRPC stubs trimmed.** `pkg/proto` ships host-side `*_grpc.pb.go` whose TLS
