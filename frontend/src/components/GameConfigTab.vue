@@ -25,14 +25,13 @@ const gameId = props.server?.game_id;
 const configs = gamesFor(gameId);
 const selected = ref<GameConfig | null>(configs[0] ?? null);
 
-const { loading, saving, error, notice, reset } = useAsyncPanel();
+const { loading, saving, error, notice, reset, beginLoad } = useAsyncPanel();
 // Only true after a failed LOAD (not a failed save) - gates the game's loadHint.
 const showLoadHint = ref(false);
 const content = ref<string | null>(null);
 const reloadKey = ref(0);
 const editorDirty = ref(false);
 const failureKind = ref<'load' | 'save' | 'conflict'>('load');
-let loadGeneration = 0;
 
 const base = `/api/file-manager/${props.serverId}`;
 
@@ -42,30 +41,39 @@ function extOf(fileName: string): string {
     return i === -1 ? '' : fileName.slice(i + 1).toLowerCase();
 }
 
+/**
+ * Read the config file as text. Every read in this component goes through here
+ * so the raw-text handling stays in one place: the panel serves the file body
+ * as-is, and letting axios JSON-parse it would mangle any config that happens
+ * to start with `{` or `[`.
+ */
+async function readFileText(cfg: GameConfig): Promise<string> {
+    const resp = await axios.get(`${base}/stream-file`, {
+        params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
+        responseType: 'text',
+        transformResponse: [(d: unknown) => d],
+    });
+    return typeof resp.data === 'string' ? resp.data : String(resp.data ?? '');
+}
+
 async function load() {
     const cfg = selected.value;
     if (!cfg) return;
-    const generation = ++loadGeneration;
     failureKind.value = 'load';
-    reset();
+    const attempt = beginLoad();
     showLoadHint.value = false;
-    loading.value = true;
     content.value = null;
     try {
-        const resp = await axios.get(`${base}/stream-file`, {
-            params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
-            responseType: 'text',
-            transformResponse: [(d: any) => d], // keep raw text, don't JSON-parse
-        });
-        if (generation !== loadGeneration) return;
-        content.value = typeof resp.data === 'string' ? resp.data : String(resp.data);
+        const text = await readFileText(cfg);
+        if (!attempt.current()) return;
+        content.value = text;
         reloadKey.value++;
     } catch (e: any) {
-        if (generation !== loadGeneration) return;
+        if (!attempt.current()) return;
         error.value = `Couldn't load ${cfg.fileName} from ${configPath(cfg)}: ${errMsg(e, 'request failed')}`;
         showLoadHint.value = true;
     } finally {
-        if (generation === loadGeneration) loading.value = false;
+        attempt.done();
     }
 }
 
@@ -76,16 +84,9 @@ async function onSave(newContent: string) {
     saving.value = true;
     reset();
 
-    const request = {
-        params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
-        responseType: 'text' as const,
-        transformResponse: [(x: unknown) => x],
-    };
-
     let currentText: string;
     try {
-        const current = await axios.get(`${base}/stream-file`, request);
-        currentText = typeof current.data === 'string' ? current.data : String(current.data ?? '');
+        currentText = await readFileText(cfg);
     } catch (e: any) {
         error.value = `Couldn't verify ${cfg.fileName} before saving: ${errMsg(e, 'request failed')}. Nothing was uploaded; use Save to retry.`;
         saving.value = false;
@@ -109,8 +110,7 @@ async function onSave(newContent: string) {
         let acknowledgedContent = newContent;
         let verified = true;
         try {
-            const saved = await axios.get(`${base}/stream-file`, request);
-            acknowledgedContent = typeof saved.data === 'string' ? saved.data : String(saved.data ?? '');
+            acknowledgedContent = await readFileText(cfg);
         } catch {
             verified = false;
         }

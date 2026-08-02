@@ -46,14 +46,13 @@ const canEdit = computed(() => {
 });
 
 const base = `/api/servers/${props.serverId}`;
-const { loading, saving, error, notice, reset } = useAsyncPanel();
+const { loading, saving, error, notice, reset, beginLoad } = useAsyncPanel();
 const unsupported = ref(false);
 const defs = ref<SettingDef[]>([]);
 const values = reactive<Record<string, ConfigValue>>({});
 const wireValues = reactive<Record<string, unknown>>({});
 const dirty = ref(false);
 const revision = ref(0);
-let loadGeneration = 0;
 let failedAction: 'load' | 'save' = 'load';
 
 // Map GameAP's declared var type to an input kind.
@@ -106,11 +105,9 @@ function toWireValue(def: SettingDef, value: ConfigValue): unknown {
 }
 
 async function load() {
-    const generation = ++loadGeneration;
     failedAction = 'load';
-    reset();
+    const attempt = beginLoad();
     unsupported.value = false;
-    loading.value = true;
     // Never leave a stale form editable beneath a refresh error.
     defs.value = [];
     for (const name of Object.keys(values)) delete values[name];
@@ -118,7 +115,7 @@ async function load() {
     dirty.value = false;
     try {
         const resp = await axios.get(`${base}/settings`);
-        if (generation !== loadGeneration) return;
+        if (!attempt.current()) return;
         const list: SettingDef[] = Array.isArray(resp.data) ? resp.data : (resp.data?.data ?? []);
         defs.value = list;
         for (const d of list) {
@@ -127,12 +124,12 @@ async function load() {
         }
         revision.value++;
     } catch (e: any) {
-        if (generation !== loadGeneration) return;
+        if (!attempt.current()) return;
         // 404/405 -> this panel version doesn't expose the settings API.
         if (e?.response && [404, 405, 501].includes(e.response.status)) unsupported.value = true;
         else error.value = errMsg(e, 'Failed to load launch settings');
     } finally {
-        if (generation === loadGeneration) loading.value = false;
+        attempt.done();
     }
 }
 

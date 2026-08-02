@@ -13,6 +13,15 @@ export function errMsg(e: any, fallback: string): string {
     return e?.response?.data?.message || e?.response?.data?.error || e?.message || fallback;
 }
 
+/**
+ * Handle on one in-flight load. `current()` is false once a newer load has
+ * started, and `done()` only clears the spinner for the newest one.
+ */
+export interface LoadAttempt {
+    current(): boolean;
+    done(): void;
+}
+
 export function useAsyncPanel() {
     const loading = ref(false);
     const saving = ref(false);
@@ -25,5 +34,28 @@ export function useAsyncPanel() {
         notice.value = null;
     }
 
-    return { loading, saving, error, notice, reset };
+    // Bumped per load so a slow response that lost the race can be dropped.
+    let generation = 0;
+
+    /**
+     * Begin a load, superseding any that is still in flight.
+     *
+     * Every await inside a load can resolve after the user has already switched
+     * files or hit reload, so the older call must not write its stale result
+     * over the newer one. Check `current()` after each await before touching
+     * reactive state, and call `done()` in a finally.
+     */
+    function beginLoad(): LoadAttempt {
+        const mine = ++generation;
+        reset();
+        loading.value = true;
+        return {
+            current: () => mine === generation,
+            done: () => {
+                if (mine === generation) loading.value = false;
+            },
+        };
+    }
+
+    return { loading, saving, error, notice, reset, beginLoad };
 }
