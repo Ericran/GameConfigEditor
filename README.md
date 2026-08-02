@@ -305,8 +305,16 @@ written down so a later change doesn't quietly undo one.
   `npm ci`, so a commit always builds against the same versions. Since
   `frontend/node_modules` is bind-mounted, a build also resets your local install
   to match the lockfile.
-- **TypeScript is held at 6.x.** TS 7 drops the JS compiler API that `vue-tsc`
-  drives, so `npm run typecheck` fails on it. 6.0.3 is the last JS-based release.
+- **TypeScript is held at 6.x**, pinned exactly (`"typescript": "6.0.3"`, no
+  caret). TS 7 is the native compiler and no longer exports
+  `typescript/lib/tsc`, which `vue-tsc` requires, so `npm run typecheck` dies
+  with `ERR_PACKAGE_PATH_NOT_EXPORTED`. 6.0.3 is the last JS-based release.
+  A `pretypecheck` step refuses to run on TS 7 and says why, so anyone who
+  installs it over the pin gets that sentence instead of a Node stack trace.
+  Nothing is lost by staying: `vue-tsc` is the only thing here that invokes
+  TypeScript at all - Vite and Vitest transpile with esbuild - so TS 7's
+  speedup would not touch this build. Revisit when `vue-tsc` stops requiring
+  `typescript/lib/tsc`, which needs the `typescript/unstable/*` API to settle.
 
 ## Config paths & caveats
 

@@ -7,6 +7,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
+    "pretypecheck": "node -e \"const m=+require('typescript/package.json').version.split('.')[0]; if(m>6){console.error('\\n  typecheck: TypeScript '+m+'.x is installed, but vue-tsc needs 6.x.\\n  TS 7 dropped typescript/lib/tsc, which vue-tsc requires, so it exits with\\n  ERR_PACKAGE_PATH_NOT_EXPORTED. typescript is pinned to 6.0.3 for this reason;\\n  see \\'TypeScript is held at 6.x\\' in the README build notes.\\n'); process.exit(1)}\"",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,7 +23,7 @@
     "@vue/test-utils": "^2.4.11",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4.1.18",
-    "typescript": "^6.0.3",
+    "typescript": "6.0.3",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "vue": "^3.5.22",
