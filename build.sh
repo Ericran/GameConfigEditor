@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Build the GameAP-GameConfigEditor plugin (.wasm) using Docker only.
 # Nothing needs to be installed on the host except Docker + git.
+#
+# Usage:
+#   ./build.sh              build the plugin (default)
+#   ./build.sh clean        remove build artifacts, keep the SDK checkout
+#   ./build.sh distclean    also drop the SDK checkout and caches
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -9,6 +14,24 @@ NODE_IMAGE="${NODE_IMAGE:-node:22-bookworm}"
 TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (GameAP v4.3.0 SDK requires it)
 OUT="${OUT:-GameAP-GameConfigEditor.wasm}"
 U="$(id -u):$(id -g)"
+
+case "${1:-build}" in
+  clean|distclean)
+    # dist/.gitkeep is tracked (see .gitignore) so the directory survives a clean.
+    rm -rf frontend/dist/* frontend/node_modules "${OUT}"
+    touch frontend/dist/.gitkeep
+    if [ "$1" = distclean ]; then
+      rm -rf .sdk .cache
+    fi
+    echo ">> cleaned (${1})"
+    exit 0
+    ;;
+  build) ;;
+  *)
+    echo "!! unknown command '$1' - expected build, clean or distclean" >&2
+    exit 1
+    ;;
+esac
 
 # Guard: the plugin version lives in three files and must match. Bump all three.
 GO_VER=$(grep -oE 'Version:[[:space:]]*"[0-9.]+"' main.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
