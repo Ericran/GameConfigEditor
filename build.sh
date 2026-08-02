@@ -16,13 +16,32 @@ TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (th
 OUT="${OUT:-GameAP-GameConfigEditor.wasm}"
 U="$(id -u):$(id -g)"
 
+# Where the Go build/module/GOPATH caches live. Defaults to ./.cache, which is
+# what you want locally: it persists between builds and keeps them fast.
+#
+# CI must override it. Under the Actions runner $PWD is a fresh workspace per
+# job, so a cache in it is cold every run AND cannot be deleted afterwards (see
+# the chmod below), which strands hundreds of MB per build.
+CACHE_DIR="${CACHE_DIR:-$PWD/.cache}"
+
+# Go marks its module cache read-only - files 0444, module dirs 0555 - so
+# `rm -rf` fails on it even as the owner, because unlinking an entry needs write
+# permission on its parent directory. Anything deleting the cache has to make it
+# writable first.
+rm_cache() {
+  [ -e "$1" ] || return 0
+  chmod -R u+w "$1" 2>/dev/null || true
+  rm -rf "$1"
+}
+
 case "${1:-build}" in
   clean|distclean)
     # dist/.gitkeep is tracked (see .gitignore) so the directory survives a clean.
     rm -rf frontend/dist/* frontend/node_modules "${OUT}"
     touch frontend/dist/.gitkeep
     if [ "$1" = distclean ]; then
-      rm -rf .sdk .cache
+      rm -rf .sdk
+      rm_cache "$CACHE_DIR"
     fi
     echo ">> cleaned (${1})"
     exit 0
@@ -90,13 +109,17 @@ if [ ! -f frontend/dist/plugin.css ]; then
   : > frontend/dist/plugin.css
 fi
 
-echo ">> [3/3] Compile WASM (TinyGo) in ${TINYGO_IMAGE}"
+echo ">> [3/3] Compile WASM (TinyGo) in ${TINYGO_IMAGE} (cache: ${CACHE_DIR})"
+mkdir -p "$CACHE_DIR"
+# The cache is mounted separately at /cache rather than living under /src, so it
+# can sit outside an ephemeral CI workspace and survive between jobs.
 docker run --rm -u "$U" \
   -e HOME=/tmp \
-  -e GOCACHE=/src/.cache/go-build \
-  -e GOMODCACHE=/src/.cache/gomod \
-  -e GOPATH=/src/.cache/gopath \
+  -e GOCACHE=/cache/go-build \
+  -e GOMODCACHE=/cache/gomod \
+  -e GOPATH=/cache/gopath \
   -e OUT="$OUT" \
+  -v "$CACHE_DIR:/cache" \
   -v "$PWD:/src" -w /src "${TINYGO_IMAGE}" \
   sh -c 'cp go.mod .build.mod; trap "rm -f .build.mod .build.sum" EXIT; GOFLAGS=-modfile=.build.mod go mod tidy && GOFLAGS=-modfile=.build.mod tinygo build -o "$OUT" -target=wasip1 -buildmode=c-shared -scheduler=none .'
 

@@ -38,4 +38,10 @@ jobs:
     runs-on: wasm
     steps:
       - uses: actions/checkout@v4
+      # Keep the Go caches out of the job workspace. It is deleted after every
+      # run, so a cache inside it is cold every build - and Go's module cache is
+      # read-only, so the runner cannot delete it either and strands ~130MB per
+      # job. An absolute path outside the workspace fixes both.
       - run: ./build.sh
+        env:
+          CACHE_DIR: $HOME/.cache/gameap-build
