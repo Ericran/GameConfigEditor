@@ -26,15 +26,16 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
-  # The .wasm build is deliberately NOT run here. build.sh shells out to
-  # `docker run` for the Node and TinyGo stages, which means Docker inside the
-  # job container - the runner would have to pass its socket through, handing
-  # any job root on that host. It is also the wrong machine for it: the build host has
-  # Docker and both images cached already. Build releases there with ./build.sh.
-  #
-  # plugin:
-  #   if: github.event_name != 'pull_request'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - run: ./build.sh
+  # Runs on the `wasm` label, which is a HOST-mode runner - steps execute
+  # directly on the machine rather than in a job container. That is required,
+  # not a preference: build.sh does `docker run -v "$PWD/frontend:/app"`, and
+  # inside a container that path is resolved by the host daemon against the
+  # host filesystem, where it does not exist. Host mode makes $PWD a real path,
+  # so build.sh behaves exactly as it does when run by hand. the build host is also
+  # where the node and tinygo images are already cached.
+  plugin:
+    if: github.event_name != 'pull_request'
+    runs-on: wasm
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build.sh
