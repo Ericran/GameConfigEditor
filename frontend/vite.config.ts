@@ -8,7 +8,13 @@ import { resolve } from 'path';
 // The repo-root VERSION file is the single source of truth; main.go embeds the
 // same file. Injected below as __PLUGIN_VERSION__ so the version appears in
 // exactly one place in the tree and cannot drift.
-const pluginVersion = readFileSync(resolve(process.cwd(), '../VERSION'), 'utf8').trim();
+//
+// build.sh passes it in as PLUGIN_VERSION because that build runs in a
+// container with only frontend/ mounted, where ../VERSION does not exist. The
+// file read is the fallback for running vite directly from a checkout.
+const pluginVersion = (
+    process.env.PLUGIN_VERSION ?? readFileSync(resolve(process.cwd(), '../VERSION'), 'utf8')
+).trim();
 
 // GameAP provides vue/router/pinia/axios as globals on window at runtime, so we
 // externalize them and rewrite imports to read from those globals. (Same

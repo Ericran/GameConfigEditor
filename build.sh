@@ -109,7 +109,11 @@ echo ">> [2/3] Build frontend bundle (Vite) in ${NODE_IMAGE}"
 # lockfile rather than whatever is newest in-range today. Note it replaces
 # frontend/node_modules wholesale - that directory is bind-mounted, so a build
 # also resets your local install to match the lockfile.
-docker run --rm -u "$U" -e HOME=/tmp -v "$PWD/frontend:/app" -w /app "${NODE_IMAGE}" \
+# PLUGIN_VERSION is passed in because only frontend/ is mounted here - the
+# repo-root VERSION file that vite.config.ts otherwise reads is not visible
+# from inside this container.
+docker run --rm -u "$U" -e HOME=/tmp -e PLUGIN_VERSION="$GO_VER" \
+  -v "$PWD/frontend:/app" -w /app "${NODE_IMAGE}" \
   sh -c "npm ci --no-audit --no-fund && npm run build"
 
 # Vite is configured (build.lib.fileName / cssFileName) to emit exactly the two

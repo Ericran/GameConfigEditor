@@ -10,7 +10,9 @@ import { resolve } from 'path';
 
 // Mirrors vite.config.ts so a test that imports src/index.ts sees the same
 // injected version rather than failing on an undefined global.
-const pluginVersion = readFileSync(resolve(process.cwd(), '../VERSION'), 'utf8').trim();
+const pluginVersion = (
+    process.env.PLUGIN_VERSION ?? readFileSync(resolve(process.cwd(), '../VERSION'), 'utf8')
+).trim();
 
 export default defineConfig({
     define: { __PLUGIN_VERSION__: JSON.stringify(pluginVersion) },
