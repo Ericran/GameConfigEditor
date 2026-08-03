@@ -59,4 +59,7 @@ jobs:
           repo: ${{ github.repository }}
           tag: ${{ github.ref_name }}
           release-dir: dist
-          token: ${{ secrets.FORGEJO_TOKEN }}
+          # Named RELEASE_TOKEN because Forgejo reserves the FORGEJO_, GITEA_ and
+          # GITHUB_ prefixes for the token it injects automatically, so a secret
+          # cannot be called FORGEJO_TOKEN. Needs repository read+write.
+          token: ${{ secrets.RELEASE_TOKEN }}
