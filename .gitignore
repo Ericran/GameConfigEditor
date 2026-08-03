@@ -4,7 +4,8 @@ frontend/dist/*
 !frontend/dist/.gitkeep
 
 # dependencies / caches
-frontend/node_modules
+# any depth: a stray `npx vitest` run from the repo root creates one here too
+node_modules/
 # emitted by `tsc -p tsconfig.node.json` (composite project, so it's unavoidable)
 frontend/*.tsbuildinfo
 # package-lock.json IS tracked on purpose - build.sh installs with `npm ci` so a
