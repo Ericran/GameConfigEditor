@@ -12,8 +12,14 @@ import { resolve } from 'path';
 // build.sh passes it in as PLUGIN_VERSION because that build runs in a
 // container with only frontend/ mounted, where ../VERSION does not exist. The
 // file read is the fallback for running vite directly from a checkout.
+//
+// `||` rather than `??`: an exported-but-empty PLUGIN_VERSION should fall back
+// to the file, not inject an empty version string into the bundle. And the path
+// is relative to this file, not process.cwd(), so invoking vite from the repo
+// root (`vite build -c frontend/vite.config.ts`) still finds VERSION instead of
+// looking for it one level above the repo.
 const pluginVersion = (
-    process.env.PLUGIN_VERSION ?? readFileSync(resolve(process.cwd(), '../VERSION'), 'utf8')
+    process.env.PLUGIN_VERSION || readFileSync(resolve(import.meta.dirname, '../VERSION'), 'utf8')
 ).trim();
 
 // GameAP provides vue/router/pinia/axios as globals on window at runtime, so we
@@ -87,6 +93,13 @@ function wrapInIIFEPlugin(): RollupPlugin {
 }
 
 export default defineConfig({
+    // Anchor the project to this file's directory instead of letting it default
+    // to process.cwd(). Identical to the old behaviour on the normal path (both
+    // build.sh's container and a local `npm run build` invoke vite from
+    // frontend/), but it also makes `vite build -c frontend/vite.config.ts` from
+    // the repo root land dist/ in frontend/ rather than at the root. outDir and
+    // the paths below all hang off this.
+    root: import.meta.dirname,
     // Tailwind runs as a Vite plugin rather than through postcss.config.js -
     // one less config file, and no standalone postcss/autoprefixer deps. CSS
     // still lands in dist/plugin.css via build.lib.cssFileName below.
@@ -96,7 +109,7 @@ export default defineConfig({
     },
     build: {
         lib: {
-            entry: resolve(process.cwd(), 'src/index.ts'),
+            entry: resolve(import.meta.dirname, 'src/index.ts'),
             formats: ['es'],
             fileName: () => 'plugin.js',
             // Without this, cssFileName falls back to the package.json `name`
@@ -118,7 +131,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@': resolve(process.cwd(), 'src'),
+            '@': resolve(import.meta.dirname, 'src'),
         },
     },
 });
