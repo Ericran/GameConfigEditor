@@ -47,19 +47,41 @@ jobs:
       # Publishing only happens for tag pushes, and only if build.sh above
       # succeeded - steps abort the job on failure, so a broken build can never
       # produce a release. Ordinary pushes still build, they just stop here.
-      - name: Stage the binary for upload
-        if: startsWith(github.ref, 'refs/tags/')
-        run: mkdir -p dist && cp GameAP-GameConfigEditor.wasm dist/
+      # Calls the API directly rather than using actions/forgejo-release. That
+      # action apt-installs its dependencies, which needs root in a container -
+      # this job is host-mode (build.sh requires real paths), so it runs as an
+      # unprivileged user and the install fails. curl and python3 are already on
+      # the host.
+      #
+      # RELEASE_TOKEN, not FORGEJO_TOKEN: Forgejo reserves the FORGEJO_, GITEA_
+      # and GITHUB_ prefixes for the token it injects automatically, so a secret
+      # cannot use them. Needs repository read+write.
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/forgejo-release@v2
-        with:
-          direction: upload
-          url: ${{ github.server_url }}
-          repo: ${{ github.repository }}
-          tag: ${{ github.ref_name }}
-          release-dir: dist
-          # Named RELEASE_TOKEN because Forgejo reserves the FORGEJO_, GITEA_ and
-          # GITHUB_ prefixes for the token it injects automatically, so a secret
-          # cannot be called FORGEJO_TOKEN. Needs repository read+write.
-          token: ${{ secrets.RELEASE_TOKEN }}
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          ASSET: GameAP-GameConfigEditor.wasm
+        run: |
+          set -euo pipefail
+          auth="Authorization: token $TOKEN"
+          # Reuse the release if the tag already has one, so re-running a tag
+          # updates it instead of failing.
+          id=$(curl -sS -X POST "$API/releases" -H "$auth" \
+                 -H 'Content-Type: application/json' \
+                 -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\"}" \
+               | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || true)
+          if [ -z "$id" ]; then
+            id=$(curl -sS "$API/releases/tags/$TAG" -H "$auth" \
+                 | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          fi
+          # Drop an existing asset of the same name, otherwise the upload 409s.
+          curl -sS "$API/releases/$id/assets" -H "$auth" \
+            | python3 -c 'import json,sys,os
+for a in json.load(sys.stdin):
+    if a["name"] == os.environ["ASSET"]: print(a["id"])' \
+            | while read -r aid; do curl -sS -X DELETE "$API/releases/$id/assets/$aid" -H "$auth"; done
+          curl -sS --fail-with-body -X POST "$API/releases/$id/assets?name=$ASSET" \
+            -H "$auth" -F "attachment=@$ASSET" >/dev/null
+          echo ">> published $TAG with $ASSET"
