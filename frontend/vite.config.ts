@@ -2,7 +2,13 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite';
 import type { Plugin as RollupPlugin } from 'rollup';
+import { readFileSync } from 'fs';
 import { resolve } from 'path';
+
+// The repo-root VERSION file is the single source of truth; main.go embeds the
+// same file. Injected below as __PLUGIN_VERSION__ so the version appears in
+// exactly one place in the tree and cannot drift.
+const pluginVersion = readFileSync(resolve(process.cwd(), '../VERSION'), 'utf8').trim();
 
 // GameAP provides vue/router/pinia/axios as globals on window at runtime, so we
 // externalize them and rewrite imports to read from those globals. (Same
@@ -79,6 +85,9 @@ export default defineConfig({
     // one less config file, and no standalone postcss/autoprefixer deps. CSS
     // still lands in dist/plugin.css via build.lib.cssFileName below.
     plugins: [vue(), tailwindcss()],
+    define: {
+        __PLUGIN_VERSION__: JSON.stringify(pluginVersion),
+    },
     build: {
         lib: {
             entry: resolve(process.cwd(), 'src/index.ts'),

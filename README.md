@@ -296,11 +296,18 @@ written down so a later change doesn't quietly undo one.
   `GOFLAGS=-modfile=` at the copy and removes it on exit. The flip side: the Go
   dependency versions are resolved per build, so only the npm half of the
   toolchain is lockfile-pinned.
-- **Version lives in three files.** `main.go`, `frontend/package.json` and
-  `frontend/src/index.ts` must agree; `build.sh` fails the build if they don't.
-  It only checks that they agree, not that the number moved - bump it whenever
-  the bundle changes, refactors included, or two different `.wasm` files end up
-  reporting the same version to the panel.
+- **Version lives in one file.** `VERSION` at the repo root is the only
+  declaration: `main.go` embeds it, and `vite.config.ts` reads it to inject
+  `__PLUGIN_VERSION__` into the bundle. Bumping is editing that file, and drift
+  between the Go shell and the frontend is no longer possible. (`package.json`
+  still carries a version for npm's benefit, but nothing reads it.)
+- **The version must move when the artifact does.** Matching version files never
+  caught the case that matters - two different `.wasm` files both shipped as
+  2026.8.3 because the number simply had not been bumped. `build.sh` now warns
+  when `VERSION` still matches the last tag but a build input has changed since
+  it, which is exactly that situation. Bump whenever the bundle changes,
+  refactors included; toolchain swaps that produce a byte-identical bundle do
+  not need one.
 - **Installs are pinned.** `package-lock.json` is committed and `build.sh` runs
   `npm ci`, so a commit always builds against the same versions. Since
   `frontend/node_modules` is bind-mounted, a build also resets your local install

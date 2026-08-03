@@ -15,10 +15,20 @@ package main
 import (
 	"context"
 	_ "embed"
+	"strings"
 
 	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk"
 )
+
+// The single source of truth for the plugin version. The frontend reads the
+// same file at build time (see vite.config.ts), so there is one declaration
+// rather than copies that have to be kept in step.
+//
+//go:embed VERSION
+var versionRaw string
+
+var version = strings.TrimSpace(versionRaw)
 
 //go:embed frontend/dist/plugin.js
 var frontendBundle []byte
@@ -45,7 +55,7 @@ func (p *GameConfigPlugin) GetInfo(
 	return &pluginproto.PluginInfo{
 		Id:          "game-config-editor",
 		Name:        "Game Config Editor",
-		Version:     "2026.8.4",
+		Version:     version,
 		Description: "Structured editors for game server config files",
 		Author:      "psinetreject",
 		ApiVersion:  "1",

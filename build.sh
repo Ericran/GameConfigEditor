@@ -53,15 +53,28 @@ case "${1:-build}" in
     ;;
 esac
 
-# Guard: the plugin version lives in three files and must match. Bump all three.
-GO_VER=$(grep -oE 'Version:[[:space:]]*"[0-9.]+"' main.go | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-PKG_VER=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[0-9.]+"' frontend/package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-TS_VER=$(grep -oE "version:[[:space:]]*'[0-9.]+'" frontend/src/index.ts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-if [ "$GO_VER" != "$PKG_VER" ] || [ "$GO_VER" != "$TS_VER" ]; then
-  echo "!! version mismatch - main.go=$GO_VER package.json=$PKG_VER index.ts=$TS_VER" >&2
-  exit 1
-fi
+# VERSION is the single source of truth: main.go embeds it, and vite.config.ts
+# reads it to inject __PLUGIN_VERSION__. Nothing else declares a version, so
+# there is no longer anything to keep in step.
+GO_VER=$(tr -d '[:space:]' < VERSION)
+[ -n "$GO_VER" ] || { echo "!! VERSION is empty" >&2; exit 1; }
 echo ">> building version ${GO_VER}"
+
+# The guard that matters: has the artifact changed while the version stayed put?
+# Matching version files never caught this - it is how two different .wasm files
+# both shipped as 2026.8.3. If HEAD still carries the last tag's version but any
+# input to the build has moved since that tag, the binary will differ from the
+# released one under the same number. Warn rather than fail; building repeatedly
+# mid-development is normal.
+if command -v git >/dev/null && git rev-parse --git-dir >/dev/null 2>&1; then
+  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+  if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" = "v${GO_VER}" ] \
+     && ! git diff --quiet "$LAST_TAG" -- VERSION main.go frontend/src frontend/package-lock.json 2>/dev/null; then
+    echo "!! warning: build inputs changed since ${LAST_TAG} but VERSION is still ${GO_VER}." >&2
+    echo "!!          this artifact will differ from the one released as ${GO_VER}." >&2
+    echo "!!          bump VERSION before publishing." >&2
+  fi
+fi
 
 echo ">> [1/3] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_REF})"
 if [ ! -d .sdk/gameap/.git ]; then
