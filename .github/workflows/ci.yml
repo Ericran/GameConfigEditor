@@ -1,0 +1,44 @@
+name: CI
+
+# GitHub Actions reads .github/workflows; Forgejo reads .forgejo/workflows. Both
+# exist on purpose and cover different ground rather than duplicating each other:
+#
+#   Forgejo  tests + typecheck + bundle, and the .wasm build, on a self-hosted
+#            runner where the Docker images and Go module cache stay warm. That
+#            is where releases are cut.
+#   GitHub   tests + typecheck + bundle only.
+#
+# The .wasm build is deliberately absent here. build.sh drives the node and
+# tinygo images, ~1.5GB that a hosted runner would re-pull on every single run
+# for a binary that is already built and released elsewhere. If that ever needs
+# to run here, `- run: ./build.sh` is the whole step - hosted runners execute
+# directly on the VM with Docker present, so its bind mounts resolve fine.
+#
+# Keep this in step with .forgejo/workflows/frontend.yml when the frontend job
+# changes; nothing enforces that they agree.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # npm caching is safe here, unlike on the self-hosted runner where it hangs
+      # against the runner's cache server. Hosted runners start cold every time,
+      # so it earns its place.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
