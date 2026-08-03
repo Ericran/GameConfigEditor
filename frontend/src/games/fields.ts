@@ -30,3 +30,20 @@ export function section(s: string) {
         sel: (key: string, label: string, options: string[]) => sel(addr(s, key), label, options),
     };
 }
+
+/**
+ * The same builders under a dotted-path prefix - for the nested formats (YAML,
+ * JSON), where a group's fields usually all hang off one branch:
+ *
+ *     const ws = path('world-settings.default');
+ *     ws.n('view-distance', 'View distance');  // world-settings.default.view-distance
+ */
+export function path(prefix: string) {
+    const at = (key: string) => `${prefix}.${key}`;
+    return {
+        n: (key: string, label: string) => n(at(key), label),
+        b: (key: string, label: string) => b(at(key), label),
+        t: (key: string, label: string) => t(at(key), label),
+        sel: (key: string, label: string, options: string[]) => sel(at(key), label, options),
+    };
+}

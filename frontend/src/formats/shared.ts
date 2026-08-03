@@ -122,6 +122,36 @@ export function orderedTable<V>(normalize: (address: string) => string = (a) => 
     };
 }
 
+/**
+ * Dotted-path addressing for nested formats (JSON, YAML). A path segment may
+ * itself contain a dot, so segments are escaped going in and the split honours
+ * the escape - `a\.b.c` is two segments, not three.
+ */
+export const escapeSegment = (segment: string): string =>
+    segment.replace(/\\/g, '\\\\').replace(/\./g, '\\.');
+
+export function splitAddress(address: string): string[] {
+    const parts: string[] = [];
+    let part = '';
+    let escaped = false;
+    for (const c of address) {
+        if (escaped) {
+            part += c;
+            escaped = false;
+        } else if (c === '\\') {
+            escaped = true;
+        } else if (c === '.') {
+            parts.push(part);
+            part = '';
+        } else {
+            part += c;
+        }
+    }
+    if (escaped) part += '\\';
+    parts.push(part);
+    return parts;
+}
+
 /** Backslash-escaped quote helpers for idTech/Unreal-style strings. */
 export const quoteDouble = (v: string) => `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 export const unquoteDouble = (raw: string) => {

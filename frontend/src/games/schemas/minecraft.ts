@@ -16,7 +16,9 @@ export const minecraftSchema: Schema = [
             b('white-list', 'Whitelist enabled'),
             b('enforce-whitelist', 'Enforce whitelist'),
             sel('op-permission-level', 'Op permission level', ['1', '2', '3', '4']),
+            sel('function-permission-level', 'Function permission level', ['1', '2', '3', '4']),
             n('player-idle-timeout', 'Idle timeout (min, 0 = off)'),
+            b('accepts-transfers', 'Accept transfers from other servers'),
         ],
     },
     {
@@ -46,6 +48,9 @@ export const minecraftSchema: Schema = [
             b('enable-command-block', 'Enable command blocks'),
             n('spawn-protection', 'Spawn protection radius'),
             n('max-world-size', 'Max world size (radius)'),
+            t('generator-settings', 'Generator settings (JSON)'),
+            t('initial-enabled-packs', 'Initially enabled data packs'),
+            t('initial-disabled-packs', 'Initially disabled data packs'),
         ],
     },
     {
@@ -60,6 +65,10 @@ export const minecraftSchema: Schema = [
             n('entity-broadcast-range-percentage', 'Entity broadcast range %'),
             b('sync-chunk-writes', 'Sync chunk writes'),
             b('use-native-transport', 'Use native transport'),
+            n('pause-when-empty-seconds', 'Pause when empty after (s, 0 = never)'),
+            n('max-chained-neighbor-updates', 'Max chained neighbour updates'),
+            sel('region-file-compression', 'Region file compression', ['deflate', 'lz4', 'none']),
+            b('enable-jmx-monitoring', 'JMX monitoring'),
         ],
     },
     {
@@ -86,7 +95,22 @@ export const minecraftSchema: Schema = [
         fields: [
             t('resource-pack', 'Resource pack URL'),
             t('resource-pack-sha1', 'Resource pack SHA-1'),
+            t('resource-pack-id', 'Resource pack UUID'),
+            t('resource-pack-prompt', 'Resource pack prompt (JSON text)'),
             b('require-resource-pack', 'Require resource pack'),
+        ],
+    },
+    {
+        id: 'moderation',
+        title: 'Chat & Moderation',
+        icon: 'fa-solid fa-comment-slash',
+        fields: [
+            b('enforce-secure-profile', 'Require signed chat (secure profile)'),
+            b('log-ips', 'Log player IPs'),
+            b('broadcast-console-to-ops', 'Broadcast console output to ops'),
+            t('text-filtering-config', 'Text filtering config'),
+            n('text-filtering-version', 'Text filtering version'),
+            t('bug-report-link', 'Bug report link'),
         ],
     },
 ];

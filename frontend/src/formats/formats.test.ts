@@ -11,7 +11,8 @@ import { palworldFormat } from './palworld';
 import { keyvalueFormat, makeKeyValueFormat } from './keyvalue';
 import { makeIniFormat, iniFormat } from './ini';
 import { convarFormat, idTechConvarFormat, sampFormat } from './convar';
-import { jsonFormat } from './json';
+import { jsonFormat, jsonListFormat } from './json';
+import { yamlFormat } from './yaml';
 import { addr } from './shared';
 import type { Format } from './types';
 
@@ -78,6 +79,20 @@ const CONVAR = [
     '',
 ].join('\n');
 
+const SPIGOT_YML = [
+    '# This is the main configuration file for Spigot.',
+    'settings:',
+    '  debug: false',
+    '  netty-threads: 4',
+    '  attribute:',
+    '    maxHealth:',
+    '      max: 2048.0',
+    '',
+    'messages:',
+    '  whitelist: You are not whitelisted on this server!',
+    '',
+].join('\n');
+
 const VRISING = [
     '{',
     '    "Name": "My V Rising Server",',
@@ -102,6 +117,7 @@ describe.each<[string, Format, string]>([
     ['keyvalue', keyvalueFormat, MINECRAFT],
     ['ini', makeIniFormat('ark-ini', { caseInsensitive: true }), ARK_INI],
     ['convar', convarFormat, CONVAR],
+    ['yaml', yamlFormat, SPIGOT_YML],
 ])('%s', (_name, format, text) => {
     it('round-trips an untouched file byte-for-byte', () => {
         const doc = format.parse(text);
@@ -685,5 +701,87 @@ describe('json', () => {
         const parsed = JSON.parse(doc.serialize());
         expect('Enabled' in parsed.Rcon).toBe(false);
         expect(parsed.Rcon.Port).toBe(25575);
+    });
+});
+
+// ------------------------------------------------------------ json (lists)
+
+const OPS = [
+    '[',
+    '    {',
+    '        "uuid": "069a79f4-44e9-4726-a5be-fca90e38aaf5",',
+    '        "name": "Notch",',
+    '        "level": 4,',
+    '        "bypassesPlayerLimit": false',
+    '    }',
+    ']',
+    '',
+].join('\n');
+
+describe('json list mode', () => {
+    it('accepts an array root, which the default format refuses', () => {
+        expect(jsonFormat.parse(OPS)).toBeNull();
+        expect(jsonListFormat.parse(OPS)).not.toBeNull();
+        expect(jsonListFormat.parse(OPS)!.serialize()).toBe(OPS);
+    });
+
+    it('addresses each element by index and groups it under a bracketed section', () => {
+        const doc = jsonListFormat.parse(OPS)!;
+        expect(doc.keys()).toEqual(['0.uuid', '0.name', '0.level', '0.bypassesPlayerLimit']);
+        expect(doc.getRaw('0.name')).toBe('Notch');
+        expect(doc.getRaw('0.level')).toBe('4');
+        // `[0]` rather than `0`, so a list of records reads as numbered entries
+        // instead of a section that looks like an ordinary key.
+        expect(doc.sectionOf('0.name')).toBe('[0]');
+        expect(doc.labelOf('0.name')).toBe('name');
+    });
+
+    it('writes through an element while keeping its JSON types', () => {
+        const doc = jsonListFormat.parse(OPS)!;
+        expect(doc.setRaw('0.name', 'jeb_')).toBe(true);
+        expect(doc.setRaw('0.level', '3')).toBe(true);
+        expect(doc.setRaw('0.bypassesPlayerLimit', 'true')).toBe(true);
+        const parsed = JSON.parse(doc.serialize());
+        expect(parsed[0]).toEqual({
+            uuid: '069a79f4-44e9-4726-a5be-fca90e38aaf5',
+            name: 'jeb_',
+            level: 3,
+            bypassesPlayerLimit: true,
+        });
+    });
+
+    it('closes the gap when a list element is removed, rather than leaving a null', () => {
+        // `delete arr[1]` would serialize as [..., null, ...] and corrupt the list.
+        const doc = jsonListFormat.parse('["a","b","c"]')!;
+        expect(doc.keys()).toEqual(['0', '1', '2']);
+        expect(doc.remove('1')).toBe(true);
+        expect(JSON.parse(doc.serialize())).toEqual(['a', 'c']);
+    });
+
+    it('removes a property of a record without disturbing the list', () => {
+        const doc = jsonListFormat.parse('[{"n":"a","x":1},{"n":"b"}]')!;
+        expect(doc.remove('0.x')).toBe(true);
+        expect(JSON.parse(doc.serialize())).toEqual([{ n: 'a' }, { n: 'b' }]);
+    });
+
+    it('will not grow a list from the form', () => {
+        const doc = jsonListFormat.parse(OPS)!;
+        expect(doc.setRaw('1.name', 'someone')).toBe(false);
+        expect(doc.serialize()).toBe(OPS);
+    });
+
+    it('still rejects a scalar root', () => {
+        expect(jsonListFormat.parse('"a string"')).toBeNull();
+        expect(jsonListFormat.parse('null')).toBeNull();
+        expect(jsonListFormat.parse('not json')).toBeNull();
+    });
+
+    it('handles an object root with nested arrays too', () => {
+        const doc = jsonListFormat.parse('{"a":{"b":[10,20]}}')!;
+        expect(doc.keys()).toEqual(['a.b.0', 'a.b.1']);
+        // The index is the leaf here, so the section is the path down to the list.
+        expect(doc.sectionOf('a.b.0')).toBe('a.b');
+        expect(doc.setRaw('a.b.1', '30')).toBe(true);
+        expect(JSON.parse(doc.serialize())).toEqual({ a: { b: [10, 30] } });
     });
 });

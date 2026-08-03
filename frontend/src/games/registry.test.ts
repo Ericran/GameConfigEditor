@@ -15,8 +15,24 @@ describe('resolve', () => {
 
     it('falls back to the file name when only one game registers it', () => {
         expect(resolve(undefined, 'PalWorldSettings.ini')!.gameName).toBe('Palworld');
-        expect(resolve(undefined, 'server.properties')!.gameName).toBe('Minecraft');
+        expect(resolve(undefined, 'bukkit.yml')!.gameName).toBe('Minecraft (Bukkit)');
         expect(resolve('some-unknown-game', 'servertest.ini')!.gameName).toBe('Project Zomboid');
+    });
+
+    it('will not guess between Java and Bedrock for a bare server.properties', () => {
+        // Both editions use that name and the same flat key=value format, and
+        // they share almost no keys - labelling a Bedrock config with Java's
+        // fields would be worse than not labelling it. With a game id, both
+        // still resolve exactly.
+        const generic = resolve(undefined, 'server.properties')!;
+        expect(generic.gameName).toBe('server.properties');
+        expect(generic.schema).toBeUndefined();
+        expect(generic.format).toBe(resolve('minecraft', 'server.properties')!.format);
+
+        expect(resolve('minecraft', 'server.properties')!.gameName).toBe('Minecraft');
+        expect(resolve('minecraft-bedrock', 'server.properties')!.gameName).toBe(
+            'Minecraft: Bedrock Edition',
+        );
     });
 
     it('refuses to guess when candidates for a shared file name disagree on format', () => {
@@ -195,6 +211,102 @@ describe('the remaining built-in games', () => {
     });
 });
 
+describe('the Minecraft family', () => {
+    /**
+     * Render a schema's dotted keys back into the YAML they claim to address.
+     * A curated path is only useful if the format can find it again, and a typo
+     * ('world-setting.default.x') fails silently in the UI - the field renders,
+     * empty, and writing it appends a key the server ignores. Round-tripping
+     * every key through the real parser is what makes that loud.
+     */
+    function yamlFrom(keys: string[]): string {
+        const root: Record<string, any> = {};
+        for (const key of keys) {
+            let node = root;
+            const parts = key.split('.');
+            parts.forEach((p, i) => {
+                if (i === parts.length - 1) node[p] = 'placeholder';
+                else node = (node[p] ??= {});
+            });
+        }
+        const emit = (obj: Record<string, any>, depth: number): string[] =>
+            Object.entries(obj).flatMap(([k, v]) =>
+                typeof v === 'string'
+                    ? [`${'  '.repeat(depth)}${k}: ${v}`]
+                    : [`${'  '.repeat(depth)}${k}:`, ...emit(v, depth + 1)],
+            );
+        return emit(root, 0).join('\n') + '\n';
+    }
+
+    it.each(['bukkit.yml', 'spigot.yml', 'paper-global.yml'])('addresses every %s key it curates', (file) => {
+        const g = resolve('minecraft', file)!;
+        const keys = g.schema!.flatMap((s) => s.fields.map((f) => f.key));
+        expect(keys.length).toBeGreaterThan(0);
+        const doc = g.format.parse(yamlFrom(keys))!;
+        expect(doc, `${file} should parse as YAML`).not.toBeNull();
+        for (const key of keys) expect(doc.has(key), `${file}: ${key} is unreachable`).toBe(true);
+    });
+
+    it('puts paper-global.yml under config/, where Paper 1.19+ writes it', () => {
+        expect(configPath(resolve('minecraft', 'paper-global.yml')!)).toBe('/config/paper-global.yml');
+        expect(configDir(resolve('minecraft', 'paper-global.yml')!)).toBe('/config');
+    });
+
+    it('reads a Bedrock server.properties with Bedrock labels, not Java ones', () => {
+        const g = resolve('minecraft-bedrock', 'server.properties')!;
+        const text = [
+            'server-name=Dedicated Server',
+            'gamemode=survival',
+            'difficulty=easy',
+            'allow-cheats=false',
+            'max-players=10',
+            'server-port=19132',
+            'server-portv6=19133',
+            'level-name=Bedrock level',
+            'default-player-permission-level=member',
+            'compression-algorithm=zlib',
+            '',
+        ].join('\n');
+        const doc = g.format.parse(text)!;
+        const keys = new Set(g.schema!.flatMap((s) => s.fields.map((f) => f.key)));
+        for (const k of doc.keys()) expect(keys.has(k), `unlabelled Bedrock key ${k}`).toBe(true);
+        expect(doc.getRaw('server-name')).toBe('Dedicated Server');
+        expect(doc.serialize()).toBe(text);
+
+        // Java-only keys must not be in the Bedrock schema, or they would render
+        // as empty fields on a server that can never have them.
+        for (const javaOnly of ['motd', 'enable-rcon', 'white-list', 'online-mode-java']) {
+            expect(keys.has(javaOnly), `Bedrock schema should not offer ${javaOnly}`).toBe(false);
+        }
+    });
+
+    it('edits a player list entry in place without disturbing the list', () => {
+        const g = resolve('minecraft', 'ops.json')!;
+        const text = '[\n  {\n    "name": "Notch",\n    "level": 4\n  }\n]\n';
+        const doc = g.format.parse(text)!;
+        expect(doc.keys()).toEqual(['0.name', '0.level']);
+        expect(doc.setRaw('0.level', '3')).toBe(true);
+        expect(JSON.parse(doc.serialize())).toEqual([{ name: 'Notch', level: 3 }]);
+        // The list files have no curated schema on purpose - entries vary in
+        // count, so the generic editor renders one group per player.
+        expect(g.schema).toBeUndefined();
+        expect(g.note).toBeTruthy();
+    });
+
+    it('warns before saving the files the running server rewrites itself', () => {
+        for (const file of ['ops.json', 'whitelist.json']) {
+            expect(resolve('minecraft', file)!.stopWarning, file).toBe(true);
+        }
+        // The YAML configs are only read at startup, so they get a restart note
+        // in their load hint rather than a stop-the-server warning.
+        for (const file of ['bukkit.yml', 'spigot.yml', 'paper-global.yml']) {
+            const g = resolve('minecraft', file)!;
+            expect(g.stopWarning, file).toBeUndefined();
+            expect(g.loadHint, file).toMatch(/restart/i);
+        }
+    });
+});
+
 describe('gamesFor', () => {
     it('returns every config a game registers, in order', () => {
         expect(gamesFor('ark').map((g) => g.fileName)).toEqual(['GameUserSettings.ini', 'Game.ini']);
@@ -202,7 +314,20 @@ describe('gamesFor', () => {
             'ServerHostSettings.json',
             'ServerGameSettings.json',
         ]);
-        expect(gamesFor('minecraft')).toHaveLength(1);
+        // server.properties first, so it stays the tab's default selection.
+        expect(gamesFor('minecraft').map((g) => g.fileName)).toEqual([
+            'server.properties',
+            'bukkit.yml',
+            'spigot.yml',
+            'paper-global.yml',
+            'ops.json',
+            'whitelist.json',
+        ]);
+        expect(gamesFor('minecraft-bedrock').map((g) => g.fileName)).toEqual([
+            'server.properties',
+            'allowlist.json',
+            'permissions.json',
+        ]);
     });
 
     it('returns nothing for an unknown or missing game', () => {

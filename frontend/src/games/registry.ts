@@ -11,11 +11,16 @@ import type { Format, Schema } from '../formats/types';
 import { palworldFormat } from '../formats/palworld';
 import { keyvalueFormat, makeKeyValueFormat } from '../formats/keyvalue';
 import { makeIniFormat } from '../formats/ini';
-import { jsonFormat } from '../formats/json';
+import { jsonFormat, jsonListFormat } from '../formats/json';
+import { yamlFormat } from '../formats/yaml';
 import { sampFormat, makeConvarFormat } from '../formats/convar';
 import { propertyXmlFormat, elementXmlFormat } from '../formats/xml';
 import { palworldSchema } from './schemas/palworld';
 import { minecraftSchema } from './schemas/minecraft';
+import { bedrockSchema } from './schemas/bedrock';
+import { bukkitSchema } from './schemas/bukkit';
+import { spigotSchema } from './schemas/spigot';
+import { paperGlobalSchema } from './schemas/paper';
 import { arkGameUserSettingsSchema, arkGameIniSchema } from './schemas/ark';
 import { pzSchema } from './schemas/pz';
 import { vrisingHostSchema } from './schemas/vrising';
@@ -89,6 +94,22 @@ const PZ_LOAD_HINT =
     'there. The filename also tracks the configured server name (default servertest.ini).';
 // V Rising does NOT generate these under the persistent data path on its own -
 // it only creates the list files there. Copy the templates in once.
+// bukkit.yml / spigot.yml / paper-global.yml only exist on the server software
+// that owns them, and only after a first run - so a missing file here is far
+// more likely to be "this server is vanilla" than a broken path.
+const bukkitHint = (file: string, software: string) =>
+    `${file} is written by ${software}. A vanilla, Fabric or Forge server does not have it, and even on the ` +
+    'right server software it only appears after the first start. Changes are read at startup, so restart the ' +
+    'server after saving.';
+const PAPER_LOAD_HINT =
+    'Paper 1.19+ keeps its global settings in config/paper-global.yml; older Paper builds used paper.yml in the ' +
+    'server root, and per-world settings live in config/paper-world-defaults.yml. A vanilla, Spigot or ' +
+    'CraftBukkit server has none of them. Changes are read at startup, so restart the server after saving.';
+// The server rewrites these lists itself whenever someone is opped, whitelisted
+// or banned, so a save from here races with the running process.
+const PLAYER_LIST_NOTE =
+    'You can edit the entries this file already holds. Adding or removing players is done in-game or from the ' +
+    'console (/op, /deop, /whitelist), because the server rewrites this file when the list changes.';
 const VRISING_LOAD_HINT =
     'V Rising does not create this on its own. Copy the template from ' +
     'VRisingServer_Data/StreamingAssets/Settings/ into save-data/Settings/ (the -persistentDataPath), then ' +
@@ -136,6 +157,86 @@ export const games: GameConfig[] = [
         dir: '',
         format: keyvalueFormat,
         schema: minecraftSchema,
+    },
+    // The Bukkit family. All three are registered against the plain `minecraft`
+    // game id because GameAP has one Minecraft entry - the panel cannot tell a
+    // Paper server from a vanilla one, so the tab offers every file and the
+    // loadHint explains which server software actually writes each.
+    {
+        gameId: 'minecraft',
+        gameName: 'Minecraft (Bukkit)',
+        fileName: 'bukkit.yml',
+        dir: '',
+        format: yamlFormat,
+        schema: bukkitSchema,
+        loadHint: bukkitHint('bukkit.yml', 'CraftBukkit, Spigot and Paper'),
+    },
+    {
+        gameId: 'minecraft',
+        gameName: 'Minecraft (Spigot)',
+        fileName: 'spigot.yml',
+        dir: '',
+        format: yamlFormat,
+        schema: spigotSchema,
+        loadHint: bukkitHint('spigot.yml', 'Spigot and Paper'),
+    },
+    {
+        gameId: 'minecraft',
+        gameName: 'Minecraft (Paper)',
+        fileName: 'paper-global.yml',
+        dir: '/config',
+        format: yamlFormat,
+        schema: paperGlobalSchema,
+        loadHint: PAPER_LOAD_HINT,
+    },
+    {
+        gameId: 'minecraft',
+        gameName: 'Minecraft (operators)',
+        fileName: 'ops.json',
+        dir: '',
+        // No schema: the file is a list of players, not a set of settings - the
+        // generic editor renders one group per entry.
+        format: jsonListFormat,
+        note: PLAYER_LIST_NOTE,
+        stopWarning: true,
+    },
+    {
+        gameId: 'minecraft',
+        gameName: 'Minecraft (whitelist)',
+        fileName: 'whitelist.json',
+        dir: '',
+        format: jsonListFormat,
+        note: PLAYER_LIST_NOTE,
+        stopWarning: true,
+    },
+    // Bedrock is not in GameAP's catalog either, so its game_id is whatever the
+    // panel was told when the game was added by hand; `minecraft-bedrock` is the
+    // assumption here. Same file name as Java, almost none of the same keys.
+    {
+        gameId: 'minecraft-bedrock',
+        gameName: 'Minecraft: Bedrock Edition',
+        fileName: 'server.properties',
+        dir: '',
+        format: keyvalueFormat,
+        schema: bedrockSchema,
+    },
+    {
+        gameId: 'minecraft-bedrock',
+        gameName: 'Minecraft: Bedrock (allow list)',
+        fileName: 'allowlist.json',
+        dir: '',
+        format: jsonListFormat,
+        note: PLAYER_LIST_NOTE,
+        stopWarning: true,
+    },
+    {
+        gameId: 'minecraft-bedrock',
+        gameName: 'Minecraft: Bedrock (operators)',
+        fileName: 'permissions.json',
+        dir: '',
+        format: jsonListFormat,
+        note: PLAYER_LIST_NOTE,
+        stopWarning: true,
     },
     {
         gameId: 'ark',

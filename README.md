@@ -11,7 +11,7 @@ shared config-format parsers.
 
 ## Supported games
 
-38 of the 41 games in GameAP's built-in catalog, plus three added manually.
+38 of the 41 games in GameAP's built-in catalog, plus four added manually.
 `game_id` is what the plugin matches on (`server.game_id`); the server app id is
 the Steam dedicated-server app from GameAP's own catalog, handy when adding a game
 to the panel.
@@ -20,7 +20,15 @@ to the panel.
 | Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
 | Palworld | `palworld` | - | `/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini` |
-| Minecraft | `minecraft` | - | `/server.properties` |
+| Minecraft (Java) | `minecraft` | - | `/server.properties` |
+| Minecraft (Bukkit) | `minecraft` | - | `/bukkit.yml` |
+| Minecraft (Spigot) | `minecraft` | - | `/spigot.yml` |
+| Minecraft (Paper) | `minecraft` | - | `/config/paper-global.yml` |
+| Minecraft (operators) | `minecraft` | - | `/ops.json` |
+| Minecraft (whitelist) | `minecraft` | - | `/whitelist.json` |
+| Minecraft: Bedrock | `minecraft-bedrock` | - | `/server.properties` |
+| Minecraft: Bedrock (allow list) | `minecraft-bedrock` | - | `/allowlist.json` |
+| Minecraft: Bedrock (operators) | `minecraft-bedrock` | - | `/permissions.json` |
 | ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini` |
 | ARK: Survival Evolved | `ark` | `376030` | `/ShooterGame/Saved/Config/LinuxServer/Game.ini` |
 | Project Zomboid | `projectzomboid` | - | `/Zomboid/Server/servertest.ini` |
@@ -102,13 +110,36 @@ with a raw-text fallback when a file doesn't parse. Hurtworld is registered that
 way on purpose: only `servername` is well documented, so the editor lists what
 the file actually holds rather than inventing keys.
 
-> **Manual-add games:** Palworld, Project Zomboid and V Rising aren't in GameAP's
-> catalog - they're added by hand, so their `game_id` is whatever your panel uses.
-> Palworld is assumed `palworld`, Project Zomboid `projectzomboid`, and V Rising
-> `1604030` (the game's Steam app id, which is how it was added here - not the
-> dedicated-server app `1829350`). If your server uses a different code, the
-> "Game Config" tab prints the actual one - change the matching `gameId` in
+> **Manual-add games:** Palworld, Project Zomboid, V Rising and Minecraft:
+> Bedrock aren't in GameAP's catalog - they're added by hand, so their `game_id`
+> is whatever your panel uses. Palworld is assumed `palworld`, Project Zomboid
+> `projectzomboid`, Bedrock `minecraft-bedrock`, and V Rising `1604030` (the
+> game's Steam app id, which is how it was added here - not the dedicated-server
+> app `1829350`). If your server uses a different code, the "Game Config" tab
+> prints the actual one - change the matching `gameId` in
 > `frontend/src/games/registry.ts`.
+
+### The Minecraft files
+
+GameAP has one Minecraft entry, and the panel can't tell a Paper server from a
+vanilla one, so **every** Java file is offered on any `minecraft` server and the
+error banner explains which server software writes each. `bukkit.yml` needs
+CraftBukkit/Spigot/Paper, `spigot.yml` needs Spigot/Paper, and
+`config/paper-global.yml` is Paper 1.19+ (older builds used `paper.yml` in the
+server root; per-world settings live in `config/paper-world-defaults.yml`,
+which isn't curated). All three are read at startup - restart after saving.
+
+`ops.json` / `whitelist.json` (and Bedrock's `allowlist.json` /
+`permissions.json`) are lists of players rather than settings, so they get no
+curated schema: the generic editor renders one group per entry, and existing
+entries can be edited in place. Adding or removing players stays a job for
+`/op`, `/deop` and `/whitelist`, because the running server rewrites these files
+whenever the list changes - the editor warns before saving to one.
+
+Java and Bedrock both call their main config `server.properties` and share
+almost none of its keys. With a `game_id` each resolves to its own schema; when
+the file manager offers no game code, the plugin declines to guess and gives a
+generic editor rather than labelling a Bedrock config with Java's fields.
 
 ## How it works
 
@@ -130,7 +161,9 @@ src/
     keyvalue.ts       flat key=value (Minecraft, PZ, Terraria)
     ini.ts            multi-section INI, optional case-insensitivity (ARK)
     convar.ts         console convars (Source/GoldSource/idTech, SA-MP variant)
-    json.ts           JSON object, dotted paths (V Rising)
+    json.ts           JSON object, dotted paths (V Rising); an opt-in list mode
+                      walks into arrays for Minecraft's player lists
+    yaml.ts           block-style YAML, dotted paths (Bukkit/Spigot/Paper)
     xml.ts            XML, attribute- or element-valued (7d2d, MTA)
     arma.ts           Arma `key = value;` with quoted strings and arrays
     *.test.ts         round-trip / fidelity tests
@@ -141,7 +174,8 @@ src/
     idtech.ts         Quake 2/3, CoD4, FiveM (set/seta dialect)
     arma.ts           Arma 2 / 2 OA / 3
     family.ts         family scaffolding: shared file/format/hint + extras group
-    fields.ts         terse schema field constructors (n/b/t/raw/sel, section())
+    fields.ts         terse schema field constructors (n/b/t/raw/sel, plus
+                      section() for INI and path() for dotted JSON/YAML keys)
     schemas/          curated per-game field schemas
   composables/
     useConfigForm.ts  ConfigDoc + Schema -> grouped fields & writable models
@@ -207,8 +241,9 @@ and renders anything not in the schema generically so nothing is ever hidden.
 ## Adding a game
 
 1. Pick or write a `Format` in `src/formats/` (most games reuse an existing one).
-2. Author a schema in `src/games/schemas/` using `n/b/t/sel` (`fields.ts`), or
-   `section('Name').n(...)` when the format has sections (INI).
+2. Author a schema in `src/games/schemas/` using `n/b/t/sel` (`fields.ts`),
+   `section('Name').n(...)` when the format has sections (INI), or
+   `path('a.b').n(...)` when it nests (JSON, YAML).
 3. Add a `GameConfig` entry to `src/games/registry.ts` (`gameId`, `fileName`,
    `dir`, `format`, `schema`). Both the tab and a game-gated file editor wire up
    automatically.

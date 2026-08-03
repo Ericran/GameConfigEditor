@@ -12,39 +12,25 @@
  * and reused. (Unlike the line-based formats it does normalize whitespace and
  * number spelling on save - acceptable for JSON, which the game rewrites anyway.)
  *
- * Used by V Rising (ServerHostSettings.json / ServerGameSettings.json).
+ * Used by V Rising (ServerHostSettings.json / ServerGameSettings.json) and, in
+ * `arrays: 'expand'` mode, by Minecraft's player-list files (ops.json,
+ * whitelist.json, allowlist.json) whose root is an array of records.
  */
 import type { ConfigDoc, Format, FType } from './types';
-import { makeCodec } from './shared';
+import { escapeSegment, makeCodec, splitAddress } from './shared';
 
 type J = any;
 
 const isPlainObject = (v: J): v is Record<string, J> =>
     v !== null && typeof v === 'object' && !Array.isArray(v);
 
-/** Dotted addresses stay readable while escaping literal dots/backslashes in keys. */
-const escapeSegment = (segment: string): string => segment.replace(/\\/g, '\\\\').replace(/\./g, '\\.');
-function splitAddress(address: string): string[] {
-    const parts: string[] = [];
-    let part = '';
-    let escaped = false;
-    for (const c of address) {
-        if (escaped) {
-            part += c;
-            escaped = false;
-        } else if (c === '\\') {
-            escaped = true;
-        } else if (c === '.') {
-            parts.push(part);
-            part = '';
-        } else {
-            part += c;
-        }
-    }
-    if (escaped) part += '\\';
-    parts.push(part);
-    return parts;
-}
+const isContainer = (v: J): boolean => isPlainObject(v) || Array.isArray(v);
+
+/** A segment addresses an array slot only if it is a plain non-negative integer. */
+const asIndex = (segment: string): number | undefined => {
+    if (!/^\d+$/.test(segment)) return undefined;
+    return Number(segment);
+};
 
 /** Indentation of the first indented line (tab or N spaces); 4 spaces if none. */
 function detectIndent(text: string): string {
@@ -100,8 +86,25 @@ function coerce(raw: string, existing: J, typeHint?: FType): { ok: boolean; valu
     return { ok: true, value: raw }; // string
 }
 
-export function makeJsonFormat(id: string): Format {
+export interface JsonOptions {
+    /**
+     * How arrays are surfaced.
+     *
+     * `'leaf'` (the default) keeps an array a single raw JSON string - right for
+     * V Rising, whose settings hold short literal lists that read better as one
+     * field than as a group of numbered slots.
+     *
+     * `'expand'` recurses into arrays, addressing each element by index
+     * (`0.name`), and accepts a top-level array as the document root. That is
+     * what makes Minecraft's player lists editable at all - they have no root
+     * object to hang dotted paths off.
+     */
+    arrays?: 'leaf' | 'expand';
+}
+
+export function makeJsonFormat(id: string, opts: JsonOptions = {}): Format {
     const codec = makeCodec({ boolTrue: 'true', boolFalse: 'false' });
+    const expand = opts.arrays === 'expand';
 
     function parse(text: string): ConfigDoc | null {
         let root: J;
@@ -110,32 +113,74 @@ export function makeJsonFormat(id: string): Format {
         } catch {
             return null; // not JSON -> editor falls back to raw text
         }
-        if (!isPlainObject(root)) return null;
+        // A scalar root has nothing to address; an array root only works when
+        // we are willing to walk into it.
+        if (!(expand ? isContainer(root) : isPlainObject(root))) return null;
 
         const indent = detectIndent(text);
         const trailing = text.endsWith('\n') ? '\n' : '';
 
-        /** Resolve an address to [parentObject, lastKey], or undefined if the path is broken. */
-        const locate = (address: string): [Record<string, J>, string] | undefined => {
+        /** Does this container hold `segment`? Arrays only accept in-range integer slots. */
+        const holds = (node: J, segment: string): boolean => {
+            if (Array.isArray(node)) {
+                if (!expand) return false;
+                const i = asIndex(segment);
+                return i !== undefined && i < node.length;
+            }
+            return isPlainObject(node) && segment in node;
+        };
+
+        /** Resolve an address to [parentContainer, lastKey], or undefined if the path is broken. */
+        const locate = (address: string): [J, string] | undefined => {
             const parts = splitAddress(address);
             let node: J = root;
             for (let i = 0; i < parts.length - 1; i++) {
-                if (!isPlainObject(node) || !(parts[i] in node)) return undefined;
+                if (!holds(node, parts[i])) return undefined;
                 node = node[parts[i]];
             }
-            return isPlainObject(node) ? [node, parts[parts.length - 1]] : undefined;
+            if (isPlainObject(node)) return [node, parts[parts.length - 1]];
+            // An array parent can only be written through an existing slot; we
+            // never grow a list from the config form.
+            if (expand && Array.isArray(node) && holds(node, parts[parts.length - 1])) {
+                return [node, parts[parts.length - 1]];
+            }
+            return undefined;
         };
+
+        /** Should we descend into this value rather than treat it as a leaf? */
+        const descend = (v: J): boolean => isPlainObject(v) || (expand && Array.isArray(v));
 
         const leaves = (): string[] => {
             const out: string[] = [];
-            const walk = (obj: Record<string, J>, prefix: string) => {
-                for (const k of Object.keys(obj)) {
+            const walk = (node: J, prefix: string) => {
+                const keys = Array.isArray(node) ? node.map((_, i) => String(i)) : Object.keys(node);
+                for (const k of keys) {
                     const path = prefix ? `${prefix}.${escapeSegment(k)}` : escapeSegment(k);
-                    if (isPlainObject(obj[k])) walk(obj[k], path);
+                    if (descend(node[k])) walk(node[k], path);
                     else out.push(path);
                 }
             };
             walk(root, '');
+            return out;
+        };
+
+        /**
+         * Display path for grouping. Index segments are bracketed (`[0].uuid`
+         * groups under `[0]`) so a list of records reads as numbered entries
+         * instead of keys that look like ordinary names.
+         */
+        const displayPath = (parts: string[]): string => {
+            let node: J = root;
+            let out = '';
+            for (const part of parts) {
+                if (Array.isArray(node) && asIndex(part) !== undefined) {
+                    out += `[${part}]`;
+                } else {
+                    out += out ? `.${escapeSegment(part)}` : escapeSegment(part);
+                }
+                if (!isContainer(node) || !(part in node)) return parts.map(escapeSegment).join('.');
+                node = node[part];
+            }
             return out;
         };
 
@@ -163,12 +208,15 @@ export function makeJsonFormat(id: string): Format {
             remove: (a) => {
                 const loc = locate(a);
                 if (!loc || !(loc[1] in loc[0])) return false;
-                delete loc[0][loc[1]];
+                // `delete arr[i]` would leave a hole that re-serialises as null,
+                // silently corrupting the list; close the gap instead.
+                if (Array.isArray(loc[0])) loc[0].splice(Number(loc[1]), 1);
+                else delete loc[0][loc[1]];
                 return true;
             },
             sectionOf: (a) => {
                 const parts = splitAddress(a);
-                return parts.length <= 1 ? '' : parts.slice(0, -1).map(escapeSegment).join('.');
+                return parts.length <= 1 ? '' : displayPath(parts.slice(0, -1));
             },
             labelOf: (a) => {
                 const parts = splitAddress(a);
@@ -181,5 +229,8 @@ export function makeJsonFormat(id: string): Format {
     return { id, codec, parse };
 }
 
-/** Default JSON format. */
+/** Default JSON format: objects only, arrays kept whole as raw JSON. */
 export const jsonFormat = makeJsonFormat('json');
+
+/** JSON format that walks into arrays and accepts an array root (Minecraft player lists). */
+export const jsonListFormat = makeJsonFormat('json-list', { arrays: 'expand' });
