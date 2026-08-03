@@ -2,6 +2,8 @@
 *.wasm
 frontend/dist/*
 !frontend/dist/.gitkeep
+# staging dir the release job copies the .wasm into before upload
+/dist/
 
 # dependencies / caches
 frontend/node_modules

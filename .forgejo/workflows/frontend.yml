@@ -43,3 +43,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./build.sh
+
+      # Publishing only happens for tag pushes, and only if build.sh above
+      # succeeded - steps abort the job on failure, so a broken build can never
+      # produce a release. Ordinary pushes still build, they just stop here.
+      - name: Stage the binary for upload
+        if: startsWith(github.ref, 'refs/tags/')
+        run: mkdir -p dist && cp GameAP-GameConfigEditor.wasm dist/
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/forgejo-release@v2
+        with:
+          direction: upload
+          url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          tag: ${{ github.ref_name }}
+          release-dir: dist
+          token: ${{ secrets.FORGEJO_TOKEN }}
