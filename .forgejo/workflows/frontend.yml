@@ -67,21 +67,13 @@ jobs:
           set -euo pipefail
           auth="Authorization: token $TOKEN"
           # Reuse the release if the tag already has one, so re-running a tag
-          # updates it instead of failing.
-          id=$(curl -sS -X POST "$API/releases" -H "$auth" \
-                 -H 'Content-Type: application/json' \
-                 -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\"}" \
-               | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || true)
+          # updates it rather than failing on a conflict.
+          id=$(curl -sS -X POST "$API/releases" -H "$auth" -H 'Content-Type: application/json' -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\"}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
           if [ -z "$id" ]; then
-            id=$(curl -sS "$API/releases/tags/$TAG" -H "$auth" \
-                 | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+            id=$(curl -sS "$API/releases/tags/$TAG" -H "$auth" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
           fi
-          # Drop an existing asset of the same name, otherwise the upload 409s.
-          curl -sS "$API/releases/$id/assets" -H "$auth" \
-            | python3 -c 'import json,sys,os
-for a in json.load(sys.stdin):
-    if a["name"] == os.environ["ASSET"]: print(a["id"])' \
-            | while read -r aid; do curl -sS -X DELETE "$API/releases/$id/assets/$aid" -H "$auth"; done
-          curl -sS --fail-with-body -X POST "$API/releases/$id/assets?name=$ASSET" \
-            -H "$auth" -F "attachment=@$ASSET" >/dev/null
+          for aid in $(curl -sS "$API/releases/$id/assets" -H "$auth" | python3 -c "import json,sys,os; print(' '.join(str(a['id']) for a in json.load(sys.stdin) if a['name']==os.environ['ASSET']))"); do
+            curl -sS -X DELETE "$API/releases/$id/assets/$aid" -H "$auth"
+          done
+          curl -sS --fail-with-body -X POST "$API/releases/$id/assets?name=$ASSET" -H "$auth" -F "attachment=@$ASSET" >/dev/null
           echo ">> published $TAG with $ASSET"
