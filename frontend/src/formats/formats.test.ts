@@ -591,6 +591,40 @@ describe('json', () => {
         expect(typeof parsed.Secure).toBe('boolean');
     });
 
+    it('uses a type hint when creating a property with no existing JSON type', () => {
+        const doc = jsonFormat.parse('{}')!;
+        expect(doc.setRaw('Port', '9876', 'number')).toBe(true);
+        expect(doc.setRaw('Secure', 'true', 'bool')).toBe(true);
+        expect(doc.setRaw('Name', '007', 'text')).toBe(true);
+
+        const parsed = JSON.parse(doc.serialize());
+        expect(parsed).toEqual({ Port: 9876, Secure: true, Name: '007' });
+        expect(typeof parsed.Port).toBe('number');
+        expect(typeof parsed.Secure).toBe('boolean');
+        expect(typeof parsed.Name).toBe('string');
+    });
+
+    it('uses a type hint when replacing null, but preserves existing non-null types', () => {
+        const doc = jsonFormat.parse('{"NullPort":null,"TextPort":"123","NumericName":123,"Enabled":true}')!;
+        expect(doc.setRaw('NullPort', '9876', 'number')).toBe(true);
+        expect(doc.setRaw('TextPort', '456', 'number')).toBe(true);
+        expect(doc.setRaw('NumericName', '456', 'text')).toBe(true);
+        expect(doc.setRaw('Enabled', 'false', 'text')).toBe(true);
+
+        const parsed = JSON.parse(doc.serialize());
+        expect(parsed.NullPort).toBe(9876);
+        expect(parsed.TextPort).toBe('456');
+        expect(parsed.NumericName).toBe(456);
+        expect(parsed.Enabled).toBe(false);
+    });
+
+    it('rejects an invalid hinted value without creating the property', () => {
+        const doc = jsonFormat.parse('{}')!;
+        expect(doc.setRaw('Port', 'Infinity', 'number')).toBe(false);
+        expect(doc.setRaw('Secure', 'not-a-boolean', 'bool')).toBe(false);
+        expect(JSON.parse(doc.serialize())).toEqual({});
+    });
+
     it('rejects non-finite numbers rather than serializing them as null', () => {
         const doc = jsonFormat.parse(VRISING)!;
         expect(doc.setRaw('Port', 'Infinity')).toBe(false);

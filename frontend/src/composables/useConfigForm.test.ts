@@ -190,6 +190,22 @@ describe('useConfigForm', () => {
         expect(doc.serialize()).toContain('name=fresh');
     });
 
+    it('passes schema types through when creating missing JSON properties', () => {
+        const doc = jsonFormat.parse('{}')!;
+        const { models, dirty } = useConfigForm(doc, schema, jsonFormat.codec);
+
+        models['name'].value = '007';
+        models['port'].value = 9876;
+        models['flag'].value = true;
+
+        const parsed = JSON.parse(doc.serialize());
+        expect(parsed).toEqual({ name: '007', port: 9876, flag: true });
+        expect(typeof parsed.name).toBe('string');
+        expect(typeof parsed.port).toBe('number');
+        expect(typeof parsed.flag).toBe('boolean');
+        expect(dirty.value).toBe(true);
+    });
+
     it('does not mark a rejected structured write dirty and exposes an actionable error', () => {
         const doc = jsonFormat.parse('{"List":[1,2]}')!;
         const rawSchema: Schema = [

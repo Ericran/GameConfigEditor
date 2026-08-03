@@ -14,7 +14,7 @@
  *
  * Used by V Rising (ServerHostSettings.json / ServerGameSettings.json).
  */
-import type { ConfigDoc, Format } from './types';
+import type { ConfigDoc, Format, FType } from './types';
 import { makeCodec } from './shared';
 
 type J = any;
@@ -62,8 +62,29 @@ function rawOf(v: J): string {
     return JSON.stringify(v);
 }
 
-/** Coerce a raw string back to the JSON type of the value it replaces. */
-function coerce(raw: string, existing: J): { ok: boolean; value: J } {
+/**
+ * Coerce a raw string back to a JSON value.
+ *
+ * Existing non-null values remain authoritative: generic field inference only
+ * sees their raw text, so a JSON string such as `"123"` must not become a
+ * number just because it looks numeric. A missing or null property has no
+ * usable on-disk type, so a curated schema's optional hint supplies it.
+ */
+function coerce(raw: string, existing: J, typeHint?: FType): { ok: boolean; value: J } {
+    if (existing === undefined || existing === null) {
+        if (typeHint === 'bool') {
+            const normalized = raw.trim().toLowerCase();
+            if (normalized !== 'true' && normalized !== 'false') {
+                return { ok: false, value: existing };
+            }
+            return { ok: true, value: normalized === 'true' };
+        }
+        if (typeHint === 'number') {
+            const n = Number(raw);
+            return { ok: Number.isFinite(n), value: Number.isFinite(n) ? n : existing };
+        }
+        return { ok: true, value: raw };
+    }
     if (typeof existing === 'boolean') return { ok: true, value: raw.trim().toLowerCase() === 'true' };
     if (typeof existing === 'number') {
         const n = Number(raw);
@@ -76,7 +97,7 @@ function coerce(raw: string, existing: J): { ok: boolean; value: J } {
             return { ok: false, value: existing };
         }
     }
-    return { ok: true, value: raw }; // string / null / brand-new key
+    return { ok: true, value: raw }; // string
 }
 
 export function makeJsonFormat(id: string): Format {
@@ -128,10 +149,13 @@ export function makeJsonFormat(id: string): Format {
                 const loc = locate(a);
                 return loc && loc[1] in loc[0] ? rawOf(loc[0][loc[1]]) : undefined;
             },
-            setRaw: (a, val) => {
+            setRaw: (a, val, typeHint) => {
                 const loc = locate(a);
                 if (!loc) return false; // won't invent missing nested parents
-                const result = coerce(val, loc[0][loc[1]]);
+                const existing = Object.prototype.hasOwnProperty.call(loc[0], loc[1])
+                    ? loc[0][loc[1]]
+                    : undefined;
+                const result = coerce(val, existing, typeHint);
                 if (!result.ok) return false;
                 loc[0][loc[1]] = result.value;
                 return true;

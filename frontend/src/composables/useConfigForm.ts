@@ -86,7 +86,7 @@ export function useConfigForm(doc: ConfigDoc, schema: Schema, codec: Codec) {
                     return codec.fromRaw(doc.getRaw(f.key), f.type);
                 },
                 set: (v: ConfigValue) => {
-                    const applied = doc.setRaw(f.key, codec.toRaw(v, f.type));
+                    const applied = doc.setRaw(f.key, codec.toRaw(v, f.type), f.type);
                     if (!applied) {
                         writeError.value = `Could not safely write ${f.label} (${f.key}); the value or document structure is invalid.`;
                         return;

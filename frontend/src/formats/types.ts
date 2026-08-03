@@ -56,8 +56,15 @@ export interface ConfigDoc {
     keys(): string[];
     has(address: string): boolean;
     getRaw(address: string): string | undefined;
-    /** Set (creating the entry if absent). Returns false when the format cannot safely apply the write. */
-    setRaw(address: string, rawValue: string): boolean;
+    /**
+     * Set (creating the entry if absent). `typeHint` lets formats whose raw
+     * spelling does not carry enough information choose the right on-disk type
+     * for a new value (notably JSON, where `9876` may be a number or a string).
+     * Existing callers and formats may omit/ignore it.
+     *
+     * Returns false when the format cannot safely apply the write.
+     */
+    setRaw(address: string, rawValue: string, typeHint?: FType): boolean;
     /** Remove an entry entirely. Returns false when no safe removal was applied. */
     remove(address: string): boolean;
     /** Atomically remove every requested entry, or leave the document unchanged. */
