@@ -11,7 +11,7 @@ shared config-format parsers.
 
 ## Supported games
 
-38 of the 41 games in GameAP's built-in catalog, plus four added manually.
+38 of the 41 games in GameAP's built-in catalog, plus five added manually.
 `game_id` is what the plugin matches on (`server.game_id`); the server app id is
 the Steam dedicated-server app from GameAP's own catalog, handy when adding a game
 to the panel.
@@ -38,6 +38,7 @@ to the panel.
 | The Forest | `the-forest` | `556450` | `/Server.cfg` |
 | Hurtworld | `hurtworld` | `405100` | `/autoexec.cfg` |
 | Reign Of Kings | `rok` | `344760` | `/Configuration/ServerSettings.cfg` |
+| Factorio | `factorio` | - | `/server-settings.json` |
 
 #### Source engine
 | Game | `game_id` | Server app id | Config path |
@@ -110,13 +111,13 @@ with a raw-text fallback when a file doesn't parse. Hurtworld is registered that
 way on purpose: only `servername` is well documented, so the editor lists what
 the file actually holds rather than inventing keys.
 
-> **Manual-add games:** Palworld, Project Zomboid, V Rising and Minecraft:
-> Bedrock aren't in GameAP's catalog - they're added by hand, so their `game_id`
-> is whatever your panel uses. Palworld is assumed `palworld`, Project Zomboid
-> `projectzomboid`, Bedrock `minecraft-bedrock`, and V Rising `1604030` (the
-> game's Steam app id, which is how it was added here - not the dedicated-server
-> app `1829350`). If your server uses a different code, the "Game Config" tab
-> prints the actual one - change the matching `gameId` in
+> **Manual-add games:** Palworld, Project Zomboid, V Rising, Factorio and
+> Minecraft: Bedrock aren't in GameAP's catalog - they're added by hand, so their
+> `game_id` is whatever your panel uses. Palworld is assumed `palworld`, Project
+> Zomboid `projectzomboid`, Factorio `factorio`, Bedrock `minecraft-bedrock`, and
+> V Rising `1604030` (the game's Steam app id, which is how it was added here -
+> not the dedicated-server app `1829350`). If your server uses a different code,
+> the "Game Config" tab prints the actual one - change the matching `gameId` in
 > `frontend/src/games/registry.ts`.
 
 ### The Minecraft files

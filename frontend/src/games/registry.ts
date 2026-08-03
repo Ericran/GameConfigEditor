@@ -30,6 +30,7 @@ import { theForestSchema } from './schemas/theforest';
 import { rokSchema } from './schemas/rok';
 import { sdtdSchema } from './schemas/sdtd';
 import { mtaSchema } from './schemas/mta';
+import { factorioSchema } from './schemas/factorio';
 import { sourceGames } from './source';
 import { goldSourceGames } from './goldsource';
 import { idTechGames } from './idtech';
@@ -110,6 +111,12 @@ const PAPER_LOAD_HINT =
 const PLAYER_LIST_NOTE =
     'You can edit the entries this file already holds. Adding or removing players is done in-game or from the ' +
     'console (/op, /deop, /whitelist), because the server rewrites this file when the list changes.';
+// Factorio ships the file as an example only - the headless server never writes
+// one, and ignores it entirely unless --server-settings points at it.
+const FACTORIO_LOAD_HINT =
+    'Factorio does not create server-settings.json. Copy data/server-settings.example.json into the server root, ' +
+    'then start the headless server with  --server-settings ./server-settings.json  - without that argument the ' +
+    'file is ignored and every setting stays at its built-in default.';
 const VRISING_LOAD_HINT =
     'V Rising does not create this on its own. Copy the template from ' +
     'VRisingServer_Data/StreamingAssets/Settings/ into save-data/Settings/ (the -persistentDataPath), then ' +
@@ -286,6 +293,20 @@ export const games: GameConfig[] = [
         // No schema: gameplay rules are many and deeply nested - the generic
         // editor renders every key grouped by its JSON section.
         loadHint: VRISING_LOAD_HINT,
+    },
+    {
+        // Not in GameAP's catalog either, so `factorio` is an assumption - see
+        // the manual-add note in the README.
+        gameId: 'factorio',
+        gameName: 'Factorio',
+        fileName: 'server-settings.json',
+        dir: '',
+        // Leaf-mode JSON on purpose: `tags` is an array and `allow_commands` is
+        // a bool/string union, and both round-trip safely as raw JSON in
+        // Advanced rather than being coerced by a typed field.
+        format: jsonFormat,
+        schema: factorioSchema,
+        loadHint: FACTORIO_LOAD_HINT,
     },
     {
         gameId: 'teamspeak3',

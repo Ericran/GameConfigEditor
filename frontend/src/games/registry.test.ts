@@ -211,6 +211,39 @@ describe('the remaining built-in games', () => {
     });
 });
 
+describe('schema wiring', () => {
+    /**
+     * Every schema module must reach the registry.
+     *
+     * Authoring a schema and forgetting step 3 (the `GameConfig` entry) is
+     * invisible otherwise: the file compiles, its own unit test passes, and
+     * Vite tree-shakes the unreferenced module straight out of the bundle - so
+     * the plugin ships with no trace of the game and nothing fails. Group
+     * identity is what's compared, because `withExtras()` builds a fresh array
+     * per family member while reusing the same Group objects.
+     */
+    it('registers every schema module, so none of them is dead code', () => {
+        // The test files must be excluded in the PATTERN, not filtered after:
+        // an eager glob imports whatever it matches, and pulling another suite's
+        // module into this one's graph mid-collection hangs the runner.
+        const modules = import.meta.glob(['./schemas/*.ts', '!./schemas/*.test.ts'], {
+            eager: true,
+        }) as Record<string, Record<string, unknown>>;
+        const registered = new Set(games.flatMap((g) => g.schema ?? []));
+        const isGroup = (v: unknown): boolean =>
+            !!v && typeof v === 'object' && 'id' in (v as object) && 'fields' in (v as object);
+
+        expect(Object.keys(modules).length).toBeGreaterThan(0);
+        for (const [file, mod] of Object.entries(modules)) {
+            for (const [name, value] of Object.entries(mod)) {
+                if (!Array.isArray(value) || value.length === 0 || !value.every(isGroup)) continue;
+                const used = value.some((group) => registered.has(group));
+                expect(used, `${file} exports ${name}, but no registry entry uses it`).toBe(true);
+            }
+        }
+    });
+});
+
 describe('the Minecraft family', () => {
     /**
      * Render a schema's dotted keys back into the YAML they claim to address.
@@ -304,6 +337,74 @@ describe('the Minecraft family', () => {
             expect(g.stopWarning, file).toBeUndefined();
             expect(g.loadHint, file).toMatch(/restart/i);
         }
+    });
+});
+
+describe('Factorio', () => {
+    const sample = JSON.stringify(
+        {
+            name: 'My Factorio Server',
+            description: '',
+            max_players: 0,
+            visibility: { public: true, lan: true },
+            username: '',
+            password: '',
+            token: '',
+            game_password: '',
+            require_user_verification: true,
+            max_upload_in_kilobytes_per_second: 0,
+            auto_pause: true,
+            allow_commands: 'admins-only',
+            autosave_interval: 10,
+            tags: ['game', 'tags'],
+        },
+        null,
+        2,
+    );
+
+    it('reads server-settings.json, including the nested visibility flags', () => {
+        const g = resolve('factorio', 'server-settings.json')!;
+        expect(configPath(g)).toBe('/server-settings.json');
+        expect(g.format.id).toBe('json');
+        const doc = g.format.parse(sample)!;
+        expect(doc.getRaw('visibility.public')).toBe('true');
+        expect(doc.getRaw('max_players')).toBe('0');
+        expect(doc.sectionOf('visibility.public')).toBe('visibility');
+    });
+
+    it('addresses every key it curates', () => {
+        const g = resolve('factorio', 'server-settings.json')!;
+        const doc = g.format.parse(sample)!;
+        for (const f of g.schema!.flatMap((s) => s.fields)) {
+            // Only the keys this sample actually carries - the rest are optional
+            // in Factorio's own example file.
+            if (!doc.has(f.key)) continue;
+            expect(doc.getRaw(f.key), `${f.key} should be readable`).toBeDefined();
+        }
+        // The two the schema documents as deliberately uncurated.
+        const curated = new Set(g.schema!.flatMap((s) => s.fields.map((f) => f.key)));
+        expect(curated.has('tags')).toBe(false);
+        expect(curated.has('allow_commands')).toBe(false);
+    });
+
+    it('keeps the array and union settings intact as raw JSON', () => {
+        const g = resolve('factorio', 'server-settings.json')!;
+        const doc = g.format.parse(sample)!;
+        // Leaf-mode JSON: `tags` stays one opaque value rather than expanding
+        // into numbered slots that could be written back as strings.
+        expect(doc.getRaw('tags')).toBe('["game","tags"]');
+        expect(doc.getRaw('allow_commands')).toBe('admins-only');
+        doc.setRaw('name', 'Renamed');
+        const parsed = JSON.parse(doc.serialize());
+        expect(parsed.tags).toEqual(['game', 'tags']);
+        expect(parsed.allow_commands).toBe('admins-only');
+        expect(parsed.name).toBe('Renamed');
+    });
+
+    it('explains that Factorio never writes the file itself', () => {
+        const g = resolve('factorio', 'server-settings.json')!;
+        expect(g.loadHint).toMatch(/server-settings\.example\.json/);
+        expect(g.loadHint).toMatch(/--server-settings/);
     });
 });
 
