@@ -66,14 +66,39 @@ echo ">> building version ${GO_VER}"
 # input to the build has moved since that tag, the binary will differ from the
 # released one under the same number. Warn rather than fail; building repeatedly
 # mid-development is normal.
+#
+# The pathspec is every input that reaches the artifact, which is wider than the
+# source: this script pins the Node and TinyGo images, and vite.config.ts decides
+# externals, IIFE wrapping and lib output. A toolchain or bundler-config change
+# with no source change still produces a different .wasm, and that was invisible
+# to the first version of this list. frontend/vitest.config.ts is deliberately
+# absent - tests do not reach the binary.
+#
+# Local-only in practice: CI checks out shallow with no tags, so `git describe`
+# finds nothing on a branch push and this block skips. The check that guards a
+# release is in .forgejo/workflows/frontend.yml, which fails the job outright
+# when a tag and VERSION disagree.
 if command -v git >/dev/null && git rev-parse --git-dir >/dev/null 2>&1; then
   LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
   if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" = "v${GO_VER}" ] \
-     && ! git diff --quiet "$LAST_TAG" -- VERSION main.go frontend/src frontend/package-lock.json 2>/dev/null; then
+     && ! git diff --quiet "$LAST_TAG" -- \
+            VERSION main.go build.sh \
+            frontend/src frontend/vite.config.ts \
+            frontend/package.json frontend/package-lock.json 2>/dev/null; then
     echo "!! warning: build inputs changed since ${LAST_TAG} but VERSION is still ${GO_VER}." >&2
     echo "!!          this artifact will differ from the one released as ${GO_VER}." >&2
     echo "!!          bump VERSION before publishing." >&2
   fi
+fi
+
+# package.json's version is cosmetic - nothing reads it, VERSION is the source of
+# truth (see the README build notes). It is still hand-synced on a bump so npm's
+# own output isn't stale, and a hand-synced copy drifts eventually, so say so
+# rather than letting it quietly report a number the plugin never shipped under.
+PKG_VER=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' frontend/package.json | head -1 | grep -oE '"[^"]+"$' | tr -d '"')
+if [ -n "$PKG_VER" ] && [ "$PKG_VER" != "$GO_VER" ]; then
+  echo "!! warning: frontend/package.json says ${PKG_VER}, VERSION says ${GO_VER}." >&2
+  echo "!!          nothing reads package.json's version, but it should not lie." >&2
 fi
 
 echo ">> [1/3] Ensure GameAP SDK checkout (./.sdk/gameap @ ${SDK_REF})"

@@ -339,11 +339,16 @@ written down so a later change doesn't quietly undo one.
   still carries a version for npm's benefit, but nothing reads it.)
 - **The version must move when the artifact does.** Matching version files never
   caught the case that matters - two different `.wasm` files both shipped as
-  2026.8.3 because the number simply had not been bumped. `build.sh` now warns
-  when `VERSION` still matches the last tag but a build input has changed since
-  it, which is exactly that situation. Bump whenever the bundle changes,
-  refactors included; toolchain swaps that produce a byte-identical bundle do
-  not need one.
+  2026.8.3 because the number simply had not been bumped. `build.sh` warns when
+  `VERSION` still matches the last tag but a build input has changed since it,
+  which is exactly that situation. "Build input" is wider than the source:
+  `build.sh` itself pins the Node and TinyGo images and `vite.config.ts` decides
+  the bundle's shape, so both count. Bump whenever the bundle changes, refactors
+  included; toolchain swaps that produce a byte-identical bundle do not need one.
+  That warning is local-only - a CI checkout is shallow and has no tags to
+  compare against - so the release job separately *fails* when a pushed tag and
+  `VERSION` disagree, which is the case that would actually ship a mislabelled
+  binary.
 - **Installs are pinned.** `package-lock.json` is committed and `build.sh` runs
   `npm ci`, so a commit always builds against the same versions. Since
   `frontend/node_modules` is bind-mounted, a build also resets your local install
