@@ -370,10 +370,13 @@ written down so a later change doesn't quietly undo one.
   devDependency. `axios` is declared explicitly even though `@gameap/debug`
   happens to hoist a copy: relying on a transitive dep's hoisting to satisfy a
   direct import breaks the moment that dep moves or is dropped.
-- **Rollup types come from `vite`, not `rollup`.** Vite 8 bundles rolldown, so
-  the `rollup` package is not installed. `vite.config.ts` names plugin types via
-  vite's re-exported `Rollup` compat namespace; importing from `rollup` directly
-  would mean depending on a bundler this project never runs.
+- **Rollup types come from `vite`, not `rollup`.** We build with vite 8, which
+  bundles rolldown, so nothing here declares `rollup`. A copy is still on disk,
+  but only as a transitive of `@gameap/debug`'s vite 7 - a dev harness the build
+  never touches. `vite.config.ts` therefore names plugin types via vite's
+  re-exported `Rollup` compat namespace: importing from `rollup` directly would
+  lean on that hoisting and break the moment the harness is dropped or bumped,
+  which is the same trap `axios` was already in.
 - **TypeScript is held at 6.x**, pinned exactly (`"typescript": "6.0.3"`, no
   caret). TS 7 is the native compiler and no longer exports
   `typescript/lib/tsc`, which `vue-tsc` requires, so `npm run typecheck` dies
