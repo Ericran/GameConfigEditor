@@ -353,6 +353,27 @@ written down so a later change doesn't quietly undo one.
   `npm ci`, so a commit always builds against the same versions. Since
   `frontend/node_modules` is bind-mounted, a build also resets your local install
   to match the lockfile.
+- **`@gameap/debug` accounts for most of `node_modules`.** It depends on
+  `@gameap/frontend`, so installing it brings a second copy of the whole panel -
+  naive-ui, date-fns, highlight.js, lodash, and its own vite 7 alongside our
+  vite 8. That is 191 of the lockfile's 518 entries and ~150 MB, none of it
+  reachable from the bundle. It is kept anyway: it is the only way to run the
+  plugin against a mock API locally, and keeping it in the lockfile means
+  `npm run debug` is pinned and works offline. Nothing in `build`, `test`, or
+  `typecheck` touches it, so if an install ever needs to be lean,
+  `npm ci --omit=dev` or dropping this one entry is the lever - `npm run debug`
+  then still works via `npx`, just unpinned and needing network.
+- **`vue` and `axios` are peer + dev dependencies, never runtime ones.** Both are
+  externalized to `window.Vue` / `window.axios` (see `globalExternalsPlugin` in
+  `vite.config.ts`) because GameAP provides them, so they must not be bundled -
+  but `vue-tsc` and Vitest still need to resolve them from disk, hence the
+  devDependency. `axios` is declared explicitly even though `@gameap/debug`
+  happens to hoist a copy: relying on a transitive dep's hoisting to satisfy a
+  direct import breaks the moment that dep moves or is dropped.
+- **Rollup types come from `vite`, not `rollup`.** Vite 8 bundles rolldown, so
+  the `rollup` package is not installed. `vite.config.ts` names plugin types via
+  vite's re-exported `Rollup` compat namespace; importing from `rollup` directly
+  would mean depending on a bundler this project never runs.
 - **TypeScript is held at 6.x**, pinned exactly (`"typescript": "6.0.3"`, no
   caret). TS 7 is the native compiler and no longer exports
   `typescript/lib/tsc`, which `vue-tsc` requires, so `npm run typecheck` dies

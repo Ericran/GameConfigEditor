@@ -1,7 +1,10 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite';
-import type { Plugin as RollupPlugin } from 'rollup';
+// Sourced from vite's re-exported Rollup compat namespace rather than the
+// `rollup` package: vite 8 bundles rolldown, so `rollup` is not installed and
+// depending on it just to name a type would pull a bundler we never run.
+import type { Rollup } from 'vite';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -25,7 +28,7 @@ const pluginVersion = (
 // GameAP provides vue/router/pinia/axios as globals on window at runtime, so we
 // externalize them and rewrite imports to read from those globals. (Same
 // approach as the official hex-editor plugin.)
-function globalExternalsPlugin(): RollupPlugin {
+function globalExternalsPlugin(): Rollup.Plugin {
     const globals = {
         'vue': 'window.Vue',
         'axios': 'window.axios',
@@ -73,7 +76,7 @@ function globalExternalsPlugin(): RollupPlugin {
     };
 }
 
-function wrapInIIFEPlugin(): RollupPlugin {
+function wrapInIIFEPlugin(): Rollup.Plugin {
     return {
         name: 'wrap-iife',
         generateBundle(options, bundle) {
