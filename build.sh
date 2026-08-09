@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-SDK_REF="${SDK_REF:-${SDK_TAG:-v4.4.0}}"     # tag or branch matching the installed panel; SDK_TAG remains compatible
+SDK_REF="${SDK_REF:-${SDK_TAG:-v4.4.1}}"     # tag or branch matching the installed panel; SDK_TAG remains compatible
 SDK_URL="${SDK_URL:-https://github.com/gameap/gameap.git}"
 NODE_IMAGE="${NODE_IMAGE:-node:24-bookworm}"
 TINYGO_IMAGE="${TINYGO_IMAGE:-tinygo/tinygo:0.41.1}"  # must support Go 1.26 (the GameAP SDK requires it)

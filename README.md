@@ -270,7 +270,7 @@ containers.
 
 This will:
 1. check out the GameAP SDK into `./.sdk/gameap` at the ref matching your panel
-   (`SDK_REF`, a tag or branch, default `v4.4.0`; `SDK_TAG` still works, and
+   (`SDK_REF`, a tag or branch, default `v4.4.1`; `SDK_TAG` still works, and
    `SDK_URL` overrides where it is cloned from). An existing checkout is reset
    and moved to that ref rather than left as-is;
 2. build the frontend bundle (Vite, via `npm ci`) -> `frontend/dist/plugin.js` +
