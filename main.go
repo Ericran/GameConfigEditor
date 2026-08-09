@@ -30,6 +30,13 @@ var versionRaw string
 
 var version = strings.TrimSpace(versionRaw)
 
+// The marketplace plugin ID, issued once when the plugin entry was created and
+// not changeable afterwards. The panel matches an installed plugin against its
+// marketplace entry on this value, so it has to be the base32 ID and not a
+// readable slug. The frontend PluginDefinition carries the same one - see
+// frontend/src/index.ts.
+const pluginID = "mfvdrt4f4zlqa"
+
 //go:embed frontend/dist/plugin.js
 var frontendBundle []byte
 
@@ -53,7 +60,7 @@ func (p *GameConfigPlugin) GetInfo(
 	_ *pluginproto.GetInfoRequest,
 ) (*pluginproto.PluginInfo, error) {
 	return &pluginproto.PluginInfo{
-		Id:          "game-config-editor",
+		Id:          pluginID,
 		Name:        "Game Config Editor",
 		Version:     version,
 		Description: "Structured editors for game server config files",

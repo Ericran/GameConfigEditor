@@ -302,9 +302,10 @@ In the panel: **Administration -> Plugins -> Upload**, select
 `GameAP-GameConfigEditor.wasm`. Open a server's **Game Config** tab, or browse to a
 supported config file in the file manager.
 
-> **Upgrading from the Palworld-only plugin:** the plugin id changed
-> (`palworld-settings` -> `game-config-editor`), so GameAP treats this as a new
-> plugin. Upload the new `.wasm`, then remove the old "Palworld Settings Editor".
+> **Upgrading from an earlier build:** the plugin id has changed twice
+> (`palworld-settings` -> `game-config-editor` -> the marketplace id
+> `mfvdrt4f4zlqa`), and GameAP treats each id as a separate plugin. Upload the
+> new `.wasm`, then remove any older copy still listed.
 
 ## Build notes / gotchas (resolved)
 

@@ -8,7 +8,8 @@ import { games } from './games/registry';
 // Single named export - the panel's bundle loader (and the Vite IIFE wrapper)
 // expect exactly one exported PluginDefinition.
 export const gameConfigPlugin: PluginDefinition = {
-    id: 'game-config-editor',
+    // Marketplace plugin ID - must stay in step with pluginID in main.go.
+    id: 'mfvdrt4f4zlqa',
     name: 'Game Config Editor',
     version: __PLUGIN_VERSION__,
     apiVersion: '1.0',
