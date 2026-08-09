@@ -13,6 +13,12 @@ import { convarFormat } from '../formats/convar';
 import { family, withExtras } from './family';
 import { n, b, t, sel } from './fields';
 
+const MISSING_HINT =
+    'Source dedicated servers do not ship a server.cfg - Valve installs the cfg/ folder with its ' +
+    '*_default templates only, and the file is left for the admin to create. Add ' +
+    '<mod>/cfg/server.cfg and it will load here. Note the panel reports a missing file as a 500 ' +
+    'rather than a not-found, so that error usually means absent rather than broken.';
+
 const shared: Group[] = [
     {
         id: 'identity',
@@ -172,6 +178,6 @@ const defs: SourceDef[] = [
 ];
 
 export const sourceGames: GameConfig[] = family(
-    { fileName: 'server.cfg', format: convarFormat },
+    { fileName: 'server.cfg', format: convarFormat, loadHint: MISSING_HINT },
     defs.map(({ extras: key, ...rest }) => ({ ...rest, schema: withExtras(shared, extras, key) })),
 );

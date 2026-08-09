@@ -117,6 +117,17 @@ describe('new catalog families', () => {
         expect(keys.has('weapon_crowbar')).toBe(false);
     });
 
+    it('explains a missing server.cfg on every Source game', () => {
+        // Source ships cfg/ with *_default templates but no server.cfg, and the
+        // panel returns 500 rather than 404 for an absent file - without a hint
+        // that surfaces as a bare transport error.
+        for (const id of ['hl2mp', 'cssource', 'tf2']) {
+            const g = resolve(id, 'server.cfg')!;
+            expect(g, id).toBeDefined();
+            expect(g.loadHint, `${id} should explain an absent server.cfg`).toBeTruthy();
+        }
+    });
+
     it('does not offer Source-only convars to GoldSource games', () => {
         const gs = resolve('valve', 'server.cfg')!;
         const keys = new Set((gs.schema ?? []).flatMap((s) => s.fields.map((f) => f.key)));
