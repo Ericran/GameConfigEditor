@@ -84,17 +84,37 @@ describe('new catalog families', () => {
             const g = resolve(id, 'server.cfg')!;
             expect(g, id).toBeDefined();
             expect(g.format.id).toBe('convar');
-            expect(g.dir.endsWith('/cfg'), `${id} dir ${g.dir}`).toBe(true);
+            // HLDS execs server.cfg from the mod folder root. `cfg/` is a Source
+            // convention and no GoldSource mod ships that directory - checked
+            // against stock installs of app 90 and 276060.
+            expect(g.dir.endsWith('/cfg'), `${id} dir ${g.dir}`).toBe(false);
         }
     });
 
     it('uses the mod folder from the catalog start command, not the game code', () => {
         // op4 launches with `-game gearbox`.
-        expect(resolve('op4', 'server.cfg')!.dir).toBe('/gearbox/cfg');
+        expect(resolve('op4', 'server.cfg')!.dir).toBe('/gearbox');
         // cs15 and CS 1.6 both live in /cstrike.
-        expect(resolve('cs15', 'server.cfg')!.dir).toBe('/cstrike/cfg');
-        // CS:S v34 shares /cstrike with CS:S.
+        expect(resolve('cs15', 'server.cfg')!.dir).toBe('/cstrike');
+        // CS:S v34 shares /cstrike with CS:S - but Source DOES use cfg/.
         expect(resolve('cssv34', 'server.cfg')!.dir).toBe('/cstrike/cfg');
+    });
+
+    it('puts GoldSource server.cfg in the mod root, Source in cfg/', () => {
+        expect(resolve('cstrike', 'server.cfg')!.dir).toBe('/cstrike'); // GoldSource CS 1.6
+        expect(resolve('cssource', 'server.cfg')!.dir).toBe('/cstrike/cfg'); // Source CS:S
+    });
+
+    it('offers Sven Co-op its map-defaults config alongside server.cfg', () => {
+        const g = resolve('svencoop', 'default_map_settings.cfg')!;
+        expect(g).toBeDefined();
+        expect(g.dir).toBe('/svencoop');
+        expect(g.format.id).toBe('convar');
+        const keys = new Set((g.schema ?? []).flatMap((s) => s.fields.map((f) => f.key)));
+        expect(keys.has('starthealth')).toBe(true);
+        expect(keys.has('mp_survival_supported')).toBe(true);
+        // The bare valueless equipment tokens are round-tripped, not surfaced.
+        expect(keys.has('weapon_crowbar')).toBe(false);
     });
 
     it('does not offer Source-only convars to GoldSource games', () => {

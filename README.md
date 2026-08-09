@@ -59,16 +59,23 @@ to the panel.
 #### GoldSource engine (HLDS)
 | Game | `game_id` | Server app id | Config path |
 |---|---|---|---|
-| Half-Life 1 | `valve` | `90` | `/valve/cfg/server.cfg` |
-| Counter-Strike 1.6 | `cstrike` | `90` | `/cstrike/cfg/server.cfg` |
-| Counter-Strike 1.5 | `cs15` | - | `/cstrike/cfg/server.cfg` |
-| Counter-Strike: Condition Zero | `czero` | `90` | `/czero/cfg/server.cfg` |
-| Day of Defeat | `dod` | `90` | `/dod/cfg/server.cfg` |
-| Team Fortress Classic | `tfc` | `90` | `/tfc/cfg/server.cfg` |
-| Half-Life: Opposing Force | `op4` | `90` | `/gearbox/cfg/server.cfg` |
-| Deathmatch Classic | `dmc` | `90` | `/dmc/cfg/server.cfg` |
-| Ricochet | `ricochet` | `90` | `/ricochet/cfg/server.cfg` |
-| Sven Co-op | `svencoop` | `276060` | `/svencoop/cfg/server.cfg` |
+| Half-Life 1 | `valve` | `90` | `/valve/server.cfg` |
+| Counter-Strike 1.6 | `cstrike` | `90` | `/cstrike/server.cfg` |
+| Counter-Strike 1.5 | `cs15` | - | `/cstrike/server.cfg` |
+| Counter-Strike: Condition Zero | `czero` | `90` | `/czero/server.cfg` |
+| Day of Defeat | `dod` | `90` | `/dod/server.cfg` |
+| Team Fortress Classic | `tfc` | `90` | `/tfc/server.cfg` |
+| Half-Life: Opposing Force | `op4` | `90` | `/gearbox/server.cfg` |
+| Deathmatch Classic | `dmc` | `90` | `/dmc/server.cfg` |
+| Ricochet | `ricochet` | `90` | `/ricochet/server.cfg` |
+| Sven Co-op | `svencoop` | `276060` | `/svencoop/server.cfg` |
+| Sven Co-op (map defaults) | `svencoop` | `276060` | `/svencoop/default_map_settings.cfg` |
+
+GoldSource keeps `server.cfg` in the mod folder root. The `cfg/` subfolder is a
+Source-engine convention and no HLDS mod ships that directory - checked against
+stock SteamCMD installs of app 90 (all seven mods) and app 276060. Ricochet
+ships no `.cfg` files at all, so its `server.cfg` only exists once you create
+one.
 
 #### idTech / set-dialect
 | Game | `game_id` | Server app id | Config path |

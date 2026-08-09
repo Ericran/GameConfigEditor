@@ -16,6 +16,7 @@ import type { GameConfig } from './registry';
 import { convarFormat } from '../formats/convar';
 import { family, withExtras } from './family';
 import { n, b, t, sel } from './fields';
+import { svencoopMapSettingsSchema } from './schemas/svencoop';
 
 const shared: Group[] = [
     {
@@ -122,19 +123,29 @@ interface GoldSourceDef {
 }
 
 const defs: GoldSourceDef[] = [
-    { gameId: 'valve', gameName: 'Half-Life 1', dir: '/valve/cfg', extras: null },
-    { gameId: 'cstrike', gameName: 'Counter-Strike 1.6', dir: '/cstrike/cfg', extras: 'cs' },
-    { gameId: 'cs15', gameName: 'Counter-Strike 1.5', dir: '/cstrike/cfg', extras: 'cs' },
-    { gameId: 'czero', gameName: 'Counter-Strike: Condition Zero', dir: '/czero/cfg', extras: 'cs' },
-    { gameId: 'dod', gameName: 'Day of Defeat', dir: '/dod/cfg', extras: 'dod' },
-    { gameId: 'tfc', gameName: 'Team Fortress Classic', dir: '/tfc/cfg', extras: 'tfc' },
-    { gameId: 'op4', gameName: 'Half-Life: Opposing Force', dir: '/gearbox/cfg', extras: null },
-    { gameId: 'dmc', gameName: 'Deathmatch Classic', dir: '/dmc/cfg', extras: null },
-    { gameId: 'ricochet', gameName: 'Ricochet', dir: '/ricochet/cfg', extras: null },
-    { gameId: 'svencoop', gameName: 'Sven Co-op', dir: '/svencoop/cfg', extras: 'svencoop' },
+    { gameId: 'valve', gameName: 'Half-Life 1', dir: '/valve', extras: null },
+    { gameId: 'cstrike', gameName: 'Counter-Strike 1.6', dir: '/cstrike', extras: 'cs' },
+    { gameId: 'cs15', gameName: 'Counter-Strike 1.5', dir: '/cstrike', extras: 'cs' },
+    { gameId: 'czero', gameName: 'Counter-Strike: Condition Zero', dir: '/czero', extras: 'cs' },
+    { gameId: 'dod', gameName: 'Day of Defeat', dir: '/dod', extras: 'dod' },
+    { gameId: 'tfc', gameName: 'Team Fortress Classic', dir: '/tfc', extras: 'tfc' },
+    { gameId: 'op4', gameName: 'Half-Life: Opposing Force', dir: '/gearbox', extras: null },
+    { gameId: 'dmc', gameName: 'Deathmatch Classic', dir: '/dmc', extras: null },
+    { gameId: 'ricochet', gameName: 'Ricochet', dir: '/ricochet', extras: null },
+    { gameId: 'svencoop', gameName: 'Sven Co-op', dir: '/svencoop', extras: 'svencoop' },
 ];
 
-export const goldSourceGames: GameConfig[] = family(
-    { fileName: 'server.cfg', format: convarFormat },
-    defs.map(({ extras: key, ...rest }) => ({ ...rest, schema: withExtras(shared, extras, key) })),
-);
+export const goldSourceGames: GameConfig[] = [
+    ...family(
+        { fileName: 'server.cfg', format: convarFormat },
+        defs.map(({ extras: key, ...rest }) => ({ ...rest, schema: withExtras(shared, extras, key) })),
+    ),
+    {
+        gameId: 'svencoop',
+        gameName: 'Sven Co-op (map defaults)',
+        fileName: 'default_map_settings.cfg',
+        dir: '/svencoop',
+        format: convarFormat,
+        schema: svencoopMapSettingsSchema,
+    },
+];
