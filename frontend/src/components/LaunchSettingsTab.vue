@@ -172,7 +172,9 @@ load();
 </script>
 
 <template>
-    <div class="flex flex-col min-h-[420px] h-full text-sm text-stone-800 dark:text-stone-200">
+    <!-- `pws-tab` scopes our unlayered button/footer rules; no `h-full` because
+         the panel's tab pane has no height of its own. -->
+    <div class="pws-tab flex flex-col min-h-[420px] text-sm text-stone-800 dark:text-stone-200">
         <Banner v-if="notice" class="m-2" tone="success" icon="fa-solid fa-check">{{ notice }}</Banner>
 
         <Banner v-if="error" class="m-2" tone="danger" icon="fa-solid fa-circle-exclamation">
@@ -204,7 +206,7 @@ load();
                 You don't have the <code>game-server-settings</code> permission - these are read-only.
             </Banner>
 
-            <div class="flex-1 overflow-auto p-3">
+            <div class="p-3">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                     <label v-for="d in defs" :key="d.name" class="flex flex-col gap-1">
                         <span class="text-xs text-stone-500 dark:text-stone-400">
@@ -225,7 +227,7 @@ load();
                 </div>
             </div>
 
-            <div class="border-t border-stone-200 dark:border-stone-700 p-2 flex items-center justify-end gap-2">
+            <div class="pws-sticky-footer shrink-0 p-2 flex items-center justify-end gap-2">
                 <span v-if="saving" class="text-xs text-stone-400">Saving...</span>
                 <button
                     class="rounded bg-sky-600 px-3 py-1 text-sm text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"

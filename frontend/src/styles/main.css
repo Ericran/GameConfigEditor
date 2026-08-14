@@ -20,6 +20,18 @@
     box-sizing: border-box;
 }
 
+/* Sticky action bar. Colours come from the panel's own theme tokens so it
+ * follows the panel's light/dark instead of guessing from a `.dark` ancestor. */
+.pws-sticky-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: var(--gameap-surface, #fff);
+    color: var(--gameap-text, inherit);
+    border-top: 1px solid var(--gameap-border, #e7e5e4);
+    box-shadow: 0 -2px 8px rgb(0 0 0 / 12%);
+}
+
 /* The panel's unlayered `button { background-color: transparent }` outranks our
  * layered bg-* utilities. Roll it back, for bare bg-* tokens only. */
 .pws-root button[class^='bg-'],

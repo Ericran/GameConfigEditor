@@ -105,27 +105,6 @@ const noGame = !game;
 const title = game?.gameName ?? props.fileName;
 const note = game?.note;
 
-/**
- * Colours for the embedded sticky footer, taken from the PANEL's own theme
- * tokens rather than our `dark:` class variant.
- *
- * The bar floats over page content, so it needs an opaque background that
- * matches whatever theme the panel is in. Inferring that ourselves is the
- * fragile part: `dark:` only fires when `.dark` sits on an ancestor, and when
- * that inference is wrong the bar paints white while text inherits the panel's
- * light-on-dark colour - an invisible Save button. GameAP publishes
- * `--gameap-*` on <html>, redefines them under `html.dark`, and re-resolves
- * them on every theme switch (web/frontend/packages/gameap-ui/theme.css), so
- * reading those tokens means the bar simply cannot disagree with the panel.
- * Fallbacks keep it readable if a future panel drops a token.
- */
-const stickyFooterStyle = {
-    background: 'var(--gameap-surface, #ffffff)',
-    color: 'var(--gameap-text, inherit)',
-    borderTop: '1px solid var(--gameap-border, #e7e5e4)',
-    // Separates the bar from same-coloured content scrolling underneath.
-    boxShadow: '0 -2px 8px rgb(0 0 0 / 12%)',
-};
 </script>
 
 <template>
@@ -230,8 +209,7 @@ const stickyFooterStyle = {
              scrolls through a long schema (Palworld alone is ~95 fields). -->
         <div
             class="shrink-0 p-2 flex items-center justify-end gap-2"
-            :class="embedded ? 'sticky bottom-0 z-10' : 'border-t border-stone-200 dark:border-stone-700'"
-            :style="embedded ? stickyFooterStyle : undefined"
+            :class="embedded ? 'pws-sticky-footer' : 'border-t border-stone-200 dark:border-stone-700'"
         >
             <span v-if="dirty" class="mr-auto text-xs font-medium text-amber-600 dark:text-amber-400">
                 <i class="fa-solid fa-pen mr-1"></i>Unsaved changes
