@@ -20,4 +20,13 @@
     box-sizing: border-box;
 }
 
+/* The panel's unlayered `button { background-color: transparent }` outranks our
+ * layered bg-* utilities. Roll it back, for bare bg-* tokens only. */
+.pws-root button[class^='bg-'],
+.pws-root button[class*=' bg-'],
+.pws-tab button[class^='bg-'],
+.pws-tab button[class*=' bg-'] {
+    background-color: revert-layer;
+}
+
 @variant dark (&:where(.dark, .dark *));
