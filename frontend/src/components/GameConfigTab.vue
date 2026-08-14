@@ -146,7 +146,10 @@ if (selected.value) load();
 </script>
 
 <template>
-    <div class="pws-tab flex flex-col min-h-[420px] h-full text-sm text-stone-800 dark:text-stone-200">
+    <!-- No `h-full`: the panel renders plugin tabs in a height-less n-tab-pane,
+         so a percentage height collapses to auto and only confuses the editor's
+         own layout. Flow at natural height and let the page scroll instead. -->
+    <div class="pws-tab flex flex-col min-h-[420px] text-sm text-stone-800 dark:text-stone-200">
         <div v-if="configs.length === 0" class="p-4 text-stone-500 dark:text-stone-400">
             No structured config editor is available for this game<span v-if="gameId"> (<code>{{ gameId }}</code>)</span>
             yet.

@@ -107,7 +107,19 @@ const note = game?.note;
 </script>
 
 <template>
-    <div class="pws-root flex flex-col h-full max-h-full text-sm text-stone-800 dark:text-stone-200">
+    <!--
+      Height handling differs by host. GameAP's PluginEditorModal gives this a
+      bounded box, so the body scrolls internally and the footer pins. A server
+      tab does not: the panel renders plugin tabs in an n-tab-pane with no
+      height, so `h-full` resolves against an indefinite parent, collapses to
+      auto, and the footer lands at the bottom of a ~3000px page - out of reach.
+      Embedded therefore flows at natural height and lets the PAGE scroll, with
+      a sticky footer so Save rides along.
+    -->
+    <div
+        class="pws-root flex flex-col text-sm text-stone-800 dark:text-stone-200"
+        :class="embedded ? '' : 'h-full max-h-full'"
+    >
         <!-- running-server warning -->
         <Banner v-if="serverRunning" class="m-2" tone="warning" icon="fa-solid fa-triangle-exclamation">
             <template v-if="game?.stopWarning"
@@ -121,7 +133,7 @@ const note = game?.note;
         </Banner>
 
         <!-- raw fallback -->
-        <div v-if="parseFailed" class="flex-1 flex flex-col p-2 gap-2 min-h-0">
+        <div v-if="parseFailed" class="flex flex-col p-2 gap-2" :class="embedded ? '' : 'flex-1 min-h-0'">
             <div class="text-red-600 dark:text-red-400 text-xs">
                 <template v-if="noGame"
                     >No structured editor is registered for this file. Editing raw text instead.</template
@@ -133,14 +145,15 @@ const note = game?.note;
             <textarea
                 v-model="rawText"
                 spellcheck="false"
-                class="flex-1 w-full font-mono text-xs p-2 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 outline-none disabled:opacity-60"
+                class="w-full font-mono text-xs p-2 rounded border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 outline-none disabled:opacity-60"
+                :class="embedded ? 'min-h-[60vh]' : 'flex-1'"
                 :disabled="saving"
                 @input="rawDirty = true"
             ></textarea>
         </div>
 
         <!-- structured form -->
-        <div v-else class="flex-1 overflow-auto p-3 space-y-6 min-h-0">
+        <div v-else class="p-3 space-y-6" :class="embedded ? '' : 'flex-1 overflow-auto min-h-0'">
             <!-- informational note (e.g. CS2 config layering) -->
             <Banner v-if="note" tone="info" icon="fa-solid fa-circle-info">{{ note }}</Banner>
 
@@ -191,8 +204,15 @@ const note = game?.note;
             </section>
         </div>
 
-        <!-- footer -->
-        <div class="border-t border-stone-200 dark:border-stone-700 p-2 flex items-center justify-end gap-2">
+        <!-- footer: sticky when embedded, so Save stays on screen while the page
+             scrolls through a long schema (Palworld alone is ~95 fields). -->
+        <div
+            class="shrink-0 border-t border-stone-200 dark:border-stone-700 p-2 flex items-center justify-end gap-2"
+            :class="embedded ? 'sticky bottom-0 z-10 bg-white dark:bg-stone-900' : ''"
+        >
+            <span v-if="dirty" class="mr-auto text-xs text-amber-600 dark:text-amber-400">
+                <i class="fa-solid fa-pen mr-1"></i>Unsaved changes
+            </span>
             <button
                 v-if="!embedded"
                 class="rounded px-3 py-1 text-sm text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
