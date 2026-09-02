@@ -41,4 +41,85 @@
     background-color: revert-layer;
 }
 
+/*
+ * Boolean fields render as a slide toggle matching the panel's own n-switch.
+ *
+ * Written as plain, UNLAYERED CSS rather than Tailwind utilities, for the same
+ * cascade reason as the button rollback above: utilities live in
+ * @layer utilities, and unlayered CSS beats layered CSS outright. The panel's
+ * bare `input { ... }` rules therefore outrank every utility we could hang on a
+ * checkbox - which is why an earlier attempt using `appearance-none` plus a
+ * ::before knob rendered as a dead grey box that ignored :checked. (Pseudo-
+ * elements on a replaced element like <input> are unreliable too, so the knob is
+ * a real span.)
+ *
+ * The input stays a real checkbox, transparent and stretched over the control,
+ * so it keeps every native behaviour: it is labelable (clicking the field's
+ * label text toggles it), Space works, and `role="switch"` makes a screen reader
+ * say on/off. The rail and knob are siblings driven by `:checked`, so there is
+ * no JS state to keep in sync.
+ *
+ * Dimensions and colours mirror naive-ui's n-switch--round (rail 40x22, knob 18,
+ * 2px inset, #84cc16 when on) so it is indistinguishable from the panel's own.
+ */
+.pws-switch {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: 40px;
+    height: 22px;
+    vertical-align: middle;
+}
+.pws-switch > input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    z-index: 1;
+}
+.pws-switch > input:disabled {
+    cursor: not-allowed;
+}
+.pws-switch__rail {
+    position: absolute;
+    inset: 0;
+    border-radius: 11px;
+    background-color: rgba(0, 0, 0, 0.14);
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pws-switch__knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background-color: #fff;
+    box-shadow:
+        0 1px 4px 0 rgba(0, 0, 0, 0.3),
+        inset 0 0 1px 0 rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pws-switch > input:checked ~ .pws-switch__rail {
+    background-color: #84cc16;
+}
+.pws-switch > input:checked ~ .pws-switch__rail .pws-switch__knob {
+    transform: translateX(18px);
+}
+.pws-switch > input:disabled ~ .pws-switch__rail {
+    opacity: 0.5;
+}
+.pws-switch > input:focus-visible ~ .pws-switch__rail {
+    box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2);
+}
+.dark .pws-switch__rail {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
 @variant dark (&:where(.dark, .dark *));

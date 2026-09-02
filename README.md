@@ -223,7 +223,7 @@ src/
     GameConfigTab.vue     one tab that switches on server.game_id
     LaunchSettingsTab.vue start-command vars via the panel settings API
     Banner.vue            the notice/warning/error callout
-    FieldInput.vue        one control per field type
+    FieldInput.vue        one control per field type; bools are slide toggles
     *.test.ts             mounted-component tests (jsdom + @vue/test-utils)
   index.ts            plugin definition: 2 tabs + N game-gated file editors
 ```
@@ -275,6 +275,15 @@ and renders anything not in the schema generically so nothing is ever hidden.
 - **Case-insensitive keys** for ARK/Unreal INI, so editing a game-written
   `AllowThirdPersonPlayer` never appends a duplicate `allowThirdPersonPlayer`.
 - **Info notes** (e.g. CS2's config-layering caveat) shown inline.
+- **Boolean fields render as slide toggles**, matching the switches the panel
+  uses on its own Settings tab (naive-ui's `n-switch`: 40x22 rail, 18px knob,
+  `#84cc16` when on). The control is a real `<input type="checkbox">` - made
+  transparent and stretched over a rail/knob pair of spans - rather than a
+  `<button role="switch">`: that keeps it labelable (clicking the field's label
+  text toggles it), keyboard-operable with Space, and correctly announced, all
+  of which a button would have to reimplement. Its styling is plain **unlayered**
+  CSS in `styles/main.css`, not Tailwind utilities, and that is load-bearing -
+  see the build note below.
 
 ## Adding a game
 
@@ -356,6 +365,19 @@ written down so a later change doesn't quietly undo one.
   code TinyGo can't compile, so `build.sh` deletes them. The guest never uses them.
 - **SDK vendored via `replace`.** `github.com/gameap/gameap` is v4.x with no
   `/v4` module path, so it can't be `go get`-ed - it's cloned to `./.sdk/gameap`.
+- **Utilities lose to the panel's own element rules; custom controls need
+  unlayered CSS.** `main.css` imports Tailwind without preflight (deliberately -
+  a global reset would clobber the panel), which puts every utility in
+  `@layer utilities`. Unlayered CSS beats layered CSS outright, so any bare
+  `input { ... }` or `button { ... }` rule on the host page overrides *all* of
+  our utilities on that element, whatever the specificity. The button
+  `background-color: revert-layer` rollback in `main.css` is one scar from this;
+  the slide toggle is another - a first version built from `appearance-none` plus
+  a `::before` knob rendered as a dead grey box that ignored `:checked`, because
+  the panel's own input styling won. Anything that restyles a bare element
+  belongs in `main.css` as plain unlayered CSS, like `.pws-switch` and
+  `.pws-sticky-footer`. (Pseudo-elements on a replaced element like `<input>` are
+  unreliable across browsers anyway, so the knob is a real span.)
 - **CSS must be `plugin.css`.** Vite names a library stylesheet after the
   package, but `main.go` embeds `dist/plugin.css`. Fixed by
   `build.lib.cssFileName`, which also keeps the name stable if the package is
