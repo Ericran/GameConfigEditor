@@ -4,7 +4,7 @@
  * schema fields, which no compiler can validate for us.
  */
 import { describe, expect, it } from 'vitest';
-import { configDir, configPath, games, gamesFor, resolve, resolveIn } from './registry';
+import { configDir, configDirCandidates, configPath, games, gamesFor, resolve, resolveIn } from './registry';
 
 describe('resolve', () => {
     it('prefers an exact game + file match', () => {
@@ -485,6 +485,32 @@ describe('path helpers', () => {
         const g = { ...resolve('minecraft', 'server.properties')!, dir: '/a/b/' };
         expect(configPath(g)).toBe('/a/b/server.properties');
         expect(configDir(g)).toBe('/a/b');
+    });
+
+    it('accepts an explicit directory, so a probe can address an alternate', () => {
+        const g = resolve('minecraft', 'server.properties')!;
+        expect(configPath(g, '/other')).toBe('/other/server.properties');
+        expect(configDir(g, '/other/')).toBe('/other');
+        expect(configDir(g, '')).toBe('/');
+        // Defaulting to the entry's own dir keeps every existing caller intact.
+        expect(configPath(g)).toBe(configPath(g, g.dir));
+    });
+
+    it('offers ARK both platform folders, native first', () => {
+        // Survival Evolved writes LinuxServer; Survival Ascended runs under
+        // Proton and writes WindowsServer. Both game ids are `ark`, so the
+        // entry cannot know which, and the tab probes in order.
+        for (const file of ['GameUserSettings.ini', 'Game.ini']) {
+            expect(configDirCandidates(resolve('ark', file)!)).toEqual([
+                '/ShooterGame/Saved/Config/LinuxServer',
+                '/ShooterGame/Saved/Config/WindowsServer',
+            ]);
+        }
+    });
+
+    it('gives a config with no alternates exactly one candidate', () => {
+        expect(configDirCandidates(resolve('minecraft', 'server.properties')!)).toEqual(['']);
+        expect(configDirCandidates(resolve('minecraft', 'paper-global.yml')!)).toEqual(['/config']);
     });
 });
 

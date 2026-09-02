@@ -85,6 +85,10 @@ const TS3_LOAD_HINT =
     'otherwise every setting stays at its built-in default.';
 
 const ARK_DIR = '/ShooterGame/Saved/Config/LinuxServer';
+// Survival Ascended has no native Linux build: it runs under Proton and writes
+// the WindowsServer folder even on a Linux node. Which one a given server uses
+// is not knowable from the game code, so offer both and let the tab find out.
+const ARK_ALT_DIRS = ['/ShooterGame/Saved/Config/WindowsServer'];
 // Shown when the file fails to load: PZ writes under $HOME/Zomboid, which is
 // commonly OUTSIDE the server directory the panel can read - so a 500 here
 // usually means the config is mapped outside the server folder, not missing.
@@ -131,6 +135,18 @@ export interface GameConfig {
     fileName: string;
     /** Directory containing the file (disk-root-relative); '' means the server root. */
     dir: string;
+    /**
+     * Further directories to try, in order, when the file is not under `dir`.
+     *
+     * For games whose config path is a convention rather than a guarantee. Unreal
+     * writes to `Saved/Config/<Platform>/`, and the platform folder depends on
+     * both the engine version and how the server is actually run - a Windows
+     * build under Proton writes the Windows folder even on a Linux node - so
+     * there is no single correct answer to hard-code. The tab tries each in turn
+     * and remembers which one answered, so a later save goes back to the file it
+     * read rather than creating a second one somewhere else.
+     */
+    altDirs?: string[];
     /** File-manager disk; nearly always 'server'. */
     disk?: string;
     format: Format;
@@ -250,6 +266,7 @@ export const games: GameConfig[] = [
         gameName: 'ARK: Survival Evolved',
         fileName: 'GameUserSettings.ini',
         dir: ARK_DIR,
+        altDirs: ARK_ALT_DIRS,
         format: arkIni,
         schema: arkGameUserSettingsSchema,
         stopWarning: true,
@@ -259,6 +276,7 @@ export const games: GameConfig[] = [
         gameName: 'ARK: Survival Evolved',
         fileName: 'Game.ini',
         dir: ARK_DIR,
+        altDirs: ARK_ALT_DIRS,
         format: arkIni,
         schema: arkGameIniSchema,
         stopWarning: true,
@@ -374,16 +392,28 @@ export const games: GameConfig[] = [
     ...armaGames,
 ];
 
-/** Disk-root-relative full path to a game's config file. */
-export function configPath(g: GameConfig): string {
-    const dir = g.dir.replace(/\/+$/, '');
-    return `${dir}/${g.fileName}`;
+/**
+ * Disk-root-relative full path to a game's config file.
+ *
+ * `dir` defaults to the entry's own, so existing callers are unchanged; the tab
+ * passes an explicit one when probing (or saving back to) an alternate.
+ */
+export function configPath(g: GameConfig, dir: string = g.dir): string {
+    return `${dir.replace(/\/+$/, '')}/${g.fileName}`;
 }
 
 /** Directory to pass to the file-API `update-file` endpoint (root = '/'). */
-export function configDir(g: GameConfig): string {
-    const dir = g.dir.replace(/\/+$/, '');
-    return dir === '' ? '/' : dir;
+export function configDir(g: GameConfig, dir: string = g.dir): string {
+    const trimmed = dir.replace(/\/+$/, '');
+    return trimmed === '' ? '/' : trimmed;
+}
+
+/**
+ * Every directory to try for this config, in order: the primary first, then any
+ * alternates. Always at least one entry, so callers need no special case.
+ */
+export function configDirCandidates(g: GameConfig): string[] {
+    return [g.dir, ...(g.altDirs ?? [])];
 }
 
 /** All config entries registered for a game (a game may have several files). */
