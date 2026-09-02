@@ -12,9 +12,11 @@
  * and reused. (Unlike the line-based formats it does normalize whitespace and
  * number spelling on save - acceptable for JSON, which the game rewrites anyway.)
  *
- * Used by V Rising (ServerHostSettings.json / ServerGameSettings.json) and, in
- * `arrays: 'expand'` mode, by Minecraft's player-list files (ops.json,
- * whitelist.json, allowlist.json) whose root is an array of records.
+ * Used by V Rising (ServerHostSettings.json / ServerGameSettings.json) and
+ * Factorio (server-settings.json); in `arrays: 'expand'` mode, by Minecraft's
+ * player-list files (ops.json, whitelist.json, allowlist.json) whose root is an
+ * array of records, and by Enshrouded, whose userGroups array holds one object
+ * per role.
  */
 import type { ConfigDoc, Format, FType } from './types';
 import { escapeSegment, makeCodec, splitAddress } from './shared';
@@ -97,7 +99,8 @@ export interface JsonOptions {
      * `'expand'` recurses into arrays, addressing each element by index
      * (`0.name`), and accepts a top-level array as the document root. That is
      * what makes Minecraft's player lists editable at all - they have no root
-     * object to hang dotted paths off.
+     * object to hang dotted paths off - and what turns Enshrouded's userGroups
+     * into one labelled group per role instead of one opaque JSON string.
      */
     arrays?: 'leaf' | 'expand';
 }
@@ -232,5 +235,5 @@ export function makeJsonFormat(id: string, opts: JsonOptions = {}): Format {
 /** Default JSON format: objects only, arrays kept whole as raw JSON. */
 export const jsonFormat = makeJsonFormat('json');
 
-/** JSON format that walks into arrays and accepts an array root (Minecraft player lists). */
+/** JSON format that walks into arrays and accepts an array root (Minecraft player lists, Enshrouded user groups). */
 export const jsonListFormat = makeJsonFormat('json-list', { arrays: 'expand' });
