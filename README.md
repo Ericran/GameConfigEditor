@@ -106,6 +106,14 @@ names (and nothing if the argument is absent), the idTech engines resolve
 `-configfilepath`. Those entries say so in the error banner if the file isn't
 there, and the file-manager editor still matches the file wherever it lives.
 
+Where a path varies in a knowable way, an entry can list alternates in
+`altDirs` instead of guessing. The tab tries each directory in turn, keeps the
+first that answers, and pins it for that file - the pre-save conflict read, the
+upload and the post-save verification all use the directory the content came
+from. Saving to the first candidate after loading from a later one would write a
+second config into a folder the server never reads, so the edit would look saved
+and do nothing. If none of them has the file, the error names every path tried.
+
 ### Not covered
 
 | Game | Why |
@@ -423,8 +431,11 @@ written down so a later change doesn't quietly undo one.
 - Config paths are disk-root-relative (the `server` disk = the server's install
   dir). The file-manager editor works regardless of path; only the tab's
   direct-load uses the registry path.
-- **ARK** paths assume a native Linux server (`.../LinuxServer/...`). ARK: Survival
-  Ascended runs under Proton and uses `.../WindowsServer/...` instead.
+- **ARK** is registered with both platform folders. Survival Evolved writes
+  `.../LinuxServer/...`; Survival Ascended has no native Linux build, runs under
+  Proton and writes `.../WindowsServer/...` even on a Linux node. Both share the
+  `ark` game id, so the entry cannot know which applies - it lists the native one
+  as `dir` and the Proton one in `altDirs`, and the tab probes in order.
 - **Project Zomboid** writes `Zomboid/` under the process `$HOME`, which may be
   outside the server dir. If the tab can't find the file, browse to it in the
   file manager. The filename also tracks the configured server name.

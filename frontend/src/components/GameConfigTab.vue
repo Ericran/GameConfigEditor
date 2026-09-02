@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import axios from 'axios';
 import type { ServerTabProps } from '@gameap/plugin-sdk';
 import Banner from './Banner.vue';
 import ConfigEditor from './ConfigEditor.vue';
 import { errMsg, useAsyncPanel } from '../composables/useAsyncPanel';
-import { gamesFor, configPath, configDir, type GameConfig } from '../games/registry';
+import {
+    gamesFor,
+    configPath,
+    configDir,
+    configDirCandidates,
+    type GameConfig,
+} from '../games/registry';
 
 /**
  * "Game Config" server tab - the front door to the editor for ANY supported
@@ -33,6 +39,19 @@ const reloadKey = ref(0);
 const editorDirty = ref(false);
 const failureKind = ref<'load' | 'save' | 'conflict'>('load');
 
+/**
+ * The directory the current file was actually read from.
+ *
+ * A config may list alternates (`altDirs`) because its platform folder isn't
+ * knowable up front. Once a load answers we pin the winner here, and every
+ * later request for this file - the pre-save conflict read, the upload, the
+ * post-save verification - uses it. Saving to `cfg.dir` after loading from an
+ * alternate would write a SECOND config file into a directory the server never
+ * reads, leaving the edit apparently saved and actually inert.
+ */
+const resolvedDir = ref<string | null>(null);
+const activeDir = computed(() => resolvedDir.value ?? selected.value?.dir ?? '');
+
 const base = `/api/file-manager/${props.serverId}`;
 
 /** File extension without the dot - the editor's `extension` prop expects it. */
@@ -47,9 +66,9 @@ function extOf(fileName: string): string {
  * as-is, and letting axios JSON-parse it would mangle any config that happens
  * to start with `{` or `[`.
  */
-async function readFileText(cfg: GameConfig): Promise<string> {
+async function readFileText(cfg: GameConfig, dir: string = activeDir.value): Promise<string> {
     const resp = await axios.get(`${base}/stream-file`, {
-        params: { disk: cfg.disk ?? 'server', path: configPath(cfg) },
+        params: { disk: cfg.disk ?? 'server', path: configPath(cfg, dir) },
         responseType: 'text',
         transformResponse: [(d: unknown) => d],
     });
@@ -63,14 +82,35 @@ async function load() {
     const attempt = beginLoad();
     showLoadHint.value = false;
     content.value = null;
+    resolvedDir.value = null;
+
+    // Probe each candidate directory in turn and keep the first that answers.
+    // Any failure moves on rather than only a 404: the panel reports an absent
+    // file as 500 on some setups, so treating one status as "missing" and the
+    // rest as fatal would stop the search on exactly the systems that need it.
+    const candidates = configDirCandidates(cfg);
+    let lastError: unknown = null;
     try {
-        const text = await readFileText(cfg);
-        if (!attempt.current()) return;
-        content.value = text;
-        reloadKey.value++;
-    } catch (e: any) {
-        if (!attempt.current()) return;
-        error.value = `Couldn't load ${cfg.fileName} from ${configPath(cfg)}: ${errMsg(e, 'request failed')}`;
+        for (const dir of candidates) {
+            try {
+                const text = await readFileText(cfg, dir);
+                if (!attempt.current()) return;
+                resolvedDir.value = dir;
+                content.value = text;
+                reloadKey.value++;
+                return;
+            } catch (e) {
+                if (!attempt.current()) return;
+                lastError = e;
+            }
+        }
+        const why = errMsg(lastError, 'request failed');
+        error.value =
+            candidates.length > 1
+                ? `Couldn't load ${cfg.fileName}. Tried ${candidates
+                      .map((dir) => configPath(cfg, dir))
+                      .join(', ')} - last error: ${why}`
+                : `Couldn't load ${cfg.fileName} from ${configPath(cfg)}: ${why}`;
         showLoadHint.value = true;
     } finally {
         attempt.done();
@@ -84,9 +124,14 @@ async function onSave(newContent: string) {
     saving.value = true;
     reset();
 
+    // Pin the directory for the whole save. Every request below has to name the
+    // same one, and reading it once means a concurrent reload can't move the
+    // upload to a different folder than the conflict check just validated.
+    const dir = activeDir.value;
+
     let currentText: string;
     try {
-        currentText = await readFileText(cfg);
+        currentText = await readFileText(cfg, dir);
     } catch (e: any) {
         error.value = `Couldn't verify ${cfg.fileName} before saving: ${errMsg(e, 'request failed')}. Nothing was uploaded; use Save to retry.`;
         saving.value = false;
@@ -103,14 +148,14 @@ async function onSave(newContent: string) {
     try {
         const fd = new FormData();
         fd.append('disk', cfg.disk ?? 'server');
-        fd.append('path', configDir(cfg));
+        fd.append('path', configDir(cfg, dir));
         fd.append('file', new File([newContent], cfg.fileName, { type: 'text/plain' }));
         await axios.post(`${base}/update-file`, fd);
 
         let acknowledgedContent = newContent;
         let verified = true;
         try {
-            acknowledgedContent = await readFileText(cfg);
+            acknowledgedContent = await readFileText(cfg, dir);
         } catch {
             verified = false;
         }
@@ -207,7 +252,7 @@ if (selected.value) load();
                 v-if="!loading && content !== null && selected"
                 :key="reloadKey"
                 :content="content"
-                :file-path="configPath(selected)"
+                :file-path="configPath(selected, activeDir)"
                 :file-name="selected.fileName"
                 :extension="extOf(selected.fileName)"
                 :plugin-id="pluginId"

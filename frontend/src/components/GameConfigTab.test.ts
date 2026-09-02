@@ -164,4 +164,57 @@ describe('GameConfigTab request ordering', () => {
         expect(wrapper.text()).toContain("Couldn't verify");
         expect(wrapper.text()).toContain('Nothing was uploaded');
     });
+
+    it('falls through the candidate directories until one answers', async () => {
+        // ARK: Survival Ascended runs under Proton and writes the WindowsServer
+        // folder even on a Linux node, so the tab probes both in order.
+        const notFound = Object.assign(new Error('Request failed with status code 404'), {
+            response: { status: 404 },
+        });
+        vi.mocked(axios.get).mockRejectedValueOnce(notFound).mockResolvedValueOnce({ data: 'ascended-config' });
+
+        const wrapper = tab();
+        await flushPromises();
+
+        expect(vi.mocked(axios.get).mock.calls.map((c) => (c[1] as any).params.path)).toEqual([
+            '/ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini',
+            '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini',
+        ]);
+        expect(wrapper.get('[data-test="editor"]').text()).toBe('ascended-config');
+        expect(wrapper.text()).not.toContain("Couldn't load");
+    });
+
+    it('saves back to the directory it loaded from, not the first candidate', async () => {
+        // The bug this guards: loading from WindowsServer and uploading to
+        // LinuxServer would write a second config the server never reads, so the
+        // edit looks saved and does nothing.
+        const notFound = Object.assign(new Error('404'), { response: { status: 404 } });
+        vi.mocked(axios.get).mockRejectedValueOnce(notFound).mockResolvedValue({ data: 'ascended-config' });
+        vi.mocked(axios.post).mockResolvedValue({});
+
+        const wrapper = tab();
+        await flushPromises();
+        wrapper.getComponent({ name: 'ConfigEditor' }).vm.$emit('save', 'edited');
+        await flushPromises();
+
+        expect(axios.post).toHaveBeenCalledOnce();
+        const form = vi.mocked(axios.post).mock.calls[0][1] as FormData;
+        expect(form.get('path')).toBe('/ShooterGame/Saved/Config/WindowsServer');
+        // ...and the pre-save conflict read and the verification read used it too,
+        // so no request in the save path can drift to another folder.
+        const paths = vi.mocked(axios.get).mock.calls.map((c) => (c[1] as any).params.path);
+        expect(paths.slice(2)).toEqual(['/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini', '/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini']);
+    });
+
+    it('names every path it tried when none of them has the file', async () => {
+        vi.mocked(axios.get).mockRejectedValue(
+            Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } }),
+        );
+        const wrapper = tab();
+        await flushPromises();
+
+        expect(vi.mocked(axios.get)).toHaveBeenCalledTimes(2);
+        expect(wrapper.text()).toContain('/ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini');
+        expect(wrapper.text()).toContain('/ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini');
+    });
 });
