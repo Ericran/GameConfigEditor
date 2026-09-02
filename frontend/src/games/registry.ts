@@ -31,6 +31,7 @@ import { rokSchema } from './schemas/rok';
 import { sdtdSchema } from './schemas/sdtd';
 import { mtaSchema } from './schemas/mta';
 import { factorioSchema } from './schemas/factorio';
+import { enshroudedSchema } from './schemas/enshrouded';
 import { sourceGames } from './source';
 import { goldSourceGames } from './goldsource';
 import { idTechGames } from './idtech';
@@ -121,6 +122,21 @@ const VRISING_LOAD_HINT =
     'V Rising does not create this on its own. Copy the template from ' +
     'VRisingServer_Data/StreamingAssets/Settings/ into save-data/Settings/ (the -persistentDataPath), then ' +
     'restart the server. Ports live in this file (Port 9876 / QueryPort 9877), not on the command line.';
+// Enshrouded writes the file itself on first boot, so an absent one almost
+// always means the server binary has never run - not a wrong path.
+const ENSHROUDED_LOAD_HINT =
+    'Enshrouded creates enshrouded_server.json next to enshrouded_server.exe the first time the server starts, so ' +
+    'a fresh install has none until then - start the server once, then reload. The server reads the file from its ' +
+    'working directory, so if the start command runs the binary from somewhere else, browse to the copy there in ' +
+    'the file manager.';
+// The two things that make an edit here silently do nothing (wrong preset) or
+// lock everyone out (no password), plus the one thing this form cannot do.
+const ENSHROUDED_NOTE =
+    'The gameSettings fields are only read when the difficulty preset is "Custom" - under any other preset the ' +
+    'server uses that preset\'s values and ignores them. User-group passwords are the only access control: the ' +
+    'password a player enters decides which group\'s permissions they get, and a group with an empty password lets ' +
+    'anyone join with those permissions. Adding a new user group or tag needs the plain file editor; the fields ' +
+    'here edit the entries the file already has.';
 
 export interface GameConfig {
     /** Matches `server.game_id` and a file-editor's `match.gameCode`. */
@@ -307,6 +323,26 @@ export const games: GameConfig[] = [
         format: jsonFormat,
         schema: factorioSchema,
         loadHint: FACTORIO_LOAD_HINT,
+    },
+    {
+        // Not in GameAP's catalog, so `enshrouded` is an assumption - see the
+        // manual-add note in the README. Dedicated-server app id is 2278520.
+        gameId: 'enshrouded',
+        gameName: 'Enshrouded',
+        fileName: 'enshrouded_server.json',
+        dir: '',
+        // Array-expanding JSON, unlike Factorio's leaf mode. This file's
+        // `userGroups` is an array of role objects holding the passwords and
+        // permission flags - the part hosts edit most - and leaf mode would
+        // render the whole array as one raw JSON string in a single input.
+        // Expanding it gives each role its own userGroups[N] group of typed
+        // fields. The cost is that an EMPTY array (`tags`, the ban list on a
+        // fresh server) contributes no addresses and so isn't shown; it still
+        // round-trips untouched, and adding entries needs the plain editor.
+        format: jsonListFormat,
+        schema: enshroudedSchema,
+        note: ENSHROUDED_NOTE,
+        loadHint: ENSHROUDED_LOAD_HINT,
     },
     {
         gameId: 'teamspeak3',

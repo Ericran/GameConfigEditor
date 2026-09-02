@@ -439,6 +439,154 @@ describe('Factorio', () => {
     });
 });
 
+describe('Enshrouded', () => {
+    // Keen's default file, trimmed to the keys these assertions need but keeping
+    // its real shape: tab indentation, empty arrays, and userGroups as a list of
+    // role objects. Tabs matter - the format re-uses the file's own indent.
+    const sample =
+        JSON.stringify(
+            {
+                name: 'Enshrouded Server',
+                saveDirectory: './savegame',
+                logDirectory: './logs',
+                ip: '0.0.0.0',
+                queryPort: 15637,
+                slotCount: 16,
+                tags: [],
+                voiceChatMode: 'Proximity',
+                enableVoiceChat: false,
+                enableTextChat: false,
+                gameSettingsPreset: 'Default',
+                gameSettings: {
+                    playerHealthFactor: 1,
+                    playerDivingTimeFactor: 1,
+                    enableDurability: true,
+                    fromHungerToStarving: 600000000000,
+                    tombstoneMode: 'AddBackpackMaterials',
+                    weatherFrequency: 'Normal',
+                    fishingDifficulty: 'Normal',
+                    perkUpgradeRecyclingFactor: 0.5,
+                    randomSpawnerAmount: 'Normal',
+                    aggroPoolAmount: 'Normal',
+                    pacifyAllEnemies: false,
+                    tamingStartleRepercussion: 'LoseSomeProgress',
+                    dayTimeDuration: 1800000000000,
+                    nightTimeDuration: 720000000000,
+                    curseModifier: 'Normal',
+                },
+                userGroups: [
+                    {
+                        name: 'Admin',
+                        password: 'AdminXXXXXXXX',
+                        canKickBan: true,
+                        canAccessInventories: true,
+                        canEditWorld: true,
+                        canEditBase: true,
+                        canExtendBase: true,
+                        reservedSlots: 0,
+                    },
+                    {
+                        name: 'Guest',
+                        password: 'GuestXXXXXXXX',
+                        canKickBan: false,
+                        canAccessInventories: false,
+                        canEditWorld: true,
+                        canEditBase: false,
+                        canExtendBase: false,
+                        reservedSlots: 0,
+                    },
+                ],
+                bannedAccounts: [],
+            },
+            null,
+            '\t',
+        ) + '\n';
+
+    const enshrouded = () => resolve('enshrouded', 'enshrouded_server.json')!;
+
+    it('reads enshrouded_server.json from the install root with the array-walking JSON format', () => {
+        const g = enshrouded();
+        expect(configPath(g)).toBe('/enshrouded_server.json');
+        expect(configDir(g)).toBe('/');
+        expect(g.format.id).toBe('json-list');
+        const doc = g.format.parse(sample)!;
+        expect(doc.getRaw('name')).toBe('Enshrouded Server');
+        expect(doc.getRaw('gameSettings.tombstoneMode')).toBe('AddBackpackMaterials');
+        expect(doc.sectionOf('gameSettings.tombstoneMode')).toBe('gameSettings');
+    });
+
+    it('addresses every key it curates', () => {
+        const g = enshrouded();
+        const doc = g.format.parse(sample)!;
+        for (const f of g.schema!.flatMap((s) => s.fields)) {
+            // The sample carries a subset of gameSettings; the rest are written
+            // by newer servers and only need to be reachable when present.
+            if (!doc.has(f.key)) continue;
+            expect(doc.getRaw(f.key), `${f.key} should be readable`).toBeDefined();
+        }
+        // The four that would be easiest to misspell against the real file.
+        for (const key of ['slotCount', 'gameSettings.playerDivingTimeFactor',
+            'gameSettings.perkUpgradeRecyclingFactor', 'gameSettings.curseModifier']) {
+            expect(doc.has(key), `${key} is unreachable`).toBe(true);
+        }
+    });
+
+    it('expands userGroups into one addressable group per role', () => {
+        // This is why the file gets the expanding format: the passwords and
+        // permission flags are the part hosts actually edit, and leaf mode would
+        // hand them the whole array as one JSON string in a single input.
+        const g = enshrouded();
+        const doc = g.format.parse(sample)!;
+        expect(doc.getRaw('userGroups.0.name')).toBe('Admin');
+        expect(doc.getRaw('userGroups.1.password')).toBe('GuestXXXXXXXX');
+        expect(doc.sectionOf('userGroups.1.canKickBan')).toBe('userGroups[1]');
+        expect(doc.labelOf('userGroups.1.canKickBan')).toBe('canKickBan');
+        // No curated schema can name a slot that may not exist, so these arrive
+        // through the generic groups instead.
+        const curated = new Set(g.schema!.flatMap((s) => s.fields.map((f) => f.key)));
+        expect(curated.has('userGroups')).toBe(false);
+    });
+
+    it('keeps every JSON type through an edit of each field kind', () => {
+        const g = enshrouded();
+        const doc = g.format.parse(sample)!;
+        expect(doc.setRaw('userGroups.1.password', 'hunter2', 'text')).toBe(true);
+        expect(doc.setRaw('userGroups.1.canAccessInventories', 'true', 'bool')).toBe(true);
+        expect(doc.setRaw('userGroups.0.reservedSlots', '2', 'number')).toBe(true);
+        expect(doc.setRaw('gameSettings.weatherFrequency', 'Often', 'select')).toBe(true);
+        expect(doc.setRaw('gameSettings.dayTimeDuration', '900000000000', 'number')).toBe(true);
+
+        const out = JSON.parse(doc.serialize());
+        expect(out.userGroups[1].password).toBe('hunter2');
+        expect(out.userGroups[1].canAccessInventories).toBe(true);
+        expect(out.userGroups[0].reservedSlots).toBe(2);
+        expect(out.gameSettings.weatherFrequency).toBe('Often');
+        expect(out.gameSettings.dayTimeDuration).toBe(900000000000);
+        // The server refuses to boot on a mistyped value, so the types the file
+        // came with have to survive: no quoted numbers, no stringified bools.
+        expect(typeof out.userGroups[0].reservedSlots).toBe('number');
+        expect(typeof out.userGroups[1].canAccessInventories).toBe('boolean');
+        expect(typeof out.gameSettings.dayTimeDuration).toBe('number');
+        // Untouched entries, including the empty arrays nothing addresses.
+        expect(out.userGroups[0].name).toBe('Admin');
+        expect(out.tags).toEqual([]);
+        expect(out.bannedAccounts).toEqual([]);
+    });
+
+    it('round-trips an untouched file, tabs and trailing newline included', () => {
+        const doc = enshrouded().format.parse(sample)!;
+        expect(doc.serialize()).toBe(sample);
+    });
+
+    it('warns that gameSettings only applies under the Custom preset', () => {
+        // Editing those factors under Default/Relaxed/Hard/Survival saves fine
+        // and changes nothing in game - the one caveat worth a banner.
+        const g = enshrouded();
+        expect(g.note).toMatch(/Custom/);
+        expect(g.loadHint).toMatch(/first time the server starts/);
+    });
+});
+
 describe('gamesFor', () => {
     it('returns every config a game registers, in order', () => {
         expect(gamesFor('ark').map((g) => g.fileName)).toEqual(['GameUserSettings.ini', 'Game.ini']);

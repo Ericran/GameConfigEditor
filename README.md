@@ -11,7 +11,7 @@ shared config-format parsers.
 
 ## Supported games
 
-38 of the 41 games in GameAP's built-in catalog, plus five added manually.
+38 of the 41 games in GameAP's built-in catalog, plus six added manually.
 `game_id` is what the plugin matches on (`server.game_id`); the server app id is
 the Steam dedicated-server app from GameAP's own catalog, handy when adding a game
 to the panel.
@@ -34,6 +34,7 @@ to the panel.
 | Project Zomboid | `projectzomboid` | - | `/Zomboid/Server/servertest.ini` |
 | V Rising | `1604030` | - | `/save-data/Settings/ServerHostSettings.json` |
 | V Rising | `1604030` | - | `/save-data/Settings/ServerGameSettings.json` |
+| Enshrouded | `enshrouded` | `2278520` | `/enshrouded_server.json` |
 | 7 Days to Die | `7d2d` | `294420` | `/serverconfig.xml` |
 | The Forest | `the-forest` | `556450` | `/Server.cfg` |
 | Hurtworld | `hurtworld` | `405100` | `/autoexec.cfg` |
@@ -118,10 +119,11 @@ with a raw-text fallback when a file doesn't parse. Hurtworld is registered that
 way on purpose: only `servername` is well documented, so the editor lists what
 the file actually holds rather than inventing keys.
 
-> **Manual-add games:** Palworld, Project Zomboid, V Rising, Factorio and
-> Minecraft: Bedrock aren't in GameAP's catalog - they're added by hand, so their
-> `game_id` is whatever your panel uses. Palworld is assumed `palworld`, Project
-> Zomboid `projectzomboid`, Factorio `factorio`, Bedrock `minecraft-bedrock`, and
+> **Manual-add games:** Palworld, Project Zomboid, V Rising, Factorio,
+> Enshrouded and Minecraft: Bedrock aren't in GameAP's catalog - they're added by
+> hand, so their `game_id` is whatever your panel uses. Palworld is assumed
+> `palworld`, Project Zomboid `projectzomboid`, Factorio `factorio`, Enshrouded
+> `enshrouded`, Bedrock `minecraft-bedrock`, and
 > V Rising `1604030` (the game's Steam app id, which is how it was added here -
 > not the dedicated-server app `1829350`). If your server uses a different code,
 > the "Game Config" tab prints the actual one - change the matching `gameId` in
@@ -148,6 +150,26 @@ Java and Bedrock both call their main config `server.properties` and share
 almost none of its keys. With a `game_id` each resolves to its own schema; when
 the file manager offers no game code, the plugin declines to guess and gives a
 generic editor rather than labelling a Bedrock config with Java's fields.
+
+### The Enshrouded user groups
+
+`enshrouded_server.json` keeps its access control in a `userGroups` array - one
+object per role, each with a password and five permission flags, and the password
+a player types decides which role they join as. That array is the part hosts
+edit most, so this file is parsed with the array-walking JSON format (the one
+Minecraft's player lists use) rather than the plain one: each role becomes its
+own `userGroups[0]`, `userGroups[1]` group of typed fields instead of a single
+input holding the whole array as one line of JSON.
+
+The trade-off is at the other end. An *empty* array contributes no addresses, so
+`tags` and the ban list are invisible on a fresh server - they round-trip
+untouched, but adding the first entry needs the file manager's plain text
+editor. Existing entries are editable in place either way.
+
+Everything under `gameSettings` is only read when `gameSettingsPreset` is
+`"Custom"`; under the other four presets the server uses the preset's values and
+ignores the file's. The editor says so in a banner, because the edit otherwise
+saves cleanly and changes nothing.
 
 ## How it works
 
